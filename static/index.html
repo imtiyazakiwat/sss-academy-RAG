@@ -3,95 +3,65 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ETL Interview Q&A Copilot</title>
+  <title>ETL Interview RAG Copilot</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/rag.css">
 </head>
 <body>
   <div class="background-glow top-left"></div>
   <div class="background-glow bottom-right"></div>
 
-  <div class="app-container">
+  <div class="app-container rag-layout">
     <!-- Header -->
     <header class="main-header">
       <div class="brand-section">
-        <div class="logo-badge">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"></path>
-          </svg>
-        </div>
+        <div class="logo-badge">🧠</div>
         <div>
-          <h1>ETL Interview Q&A Copilot</h1>
-          <p class="subtitle">SSS Academy Knowledge Base + Fine-Tuned Apple M4 MLX Engine</p>
+          <h1>ETL Interview RAG Copilot</h1>
+          <p class="subtitle">SSS Academy Notes • Retrieval-First RAG • Qwen 2.5 3B on Apple M4 (100% Local)</p>
         </div>
       </div>
-
       <div class="system-status-pills">
         <div class="status-pill" id="indexStatus">
           <span class="status-dot"></span>
-          <span class="pill-text">Indexed: <strong id="indexedCount">47</strong> Q&As</span>
+          <span class="pill-text">Chunks: <strong id="indexedCount">…</strong></span>
         </div>
-        <button class="status-pill key-pill" id="engineToggleBtn" title="Switch between Local M4 MLX & Groq LPU">
+        <div class="status-pill">
           <span id="engineIcon">🍎</span>
-          <span id="engineStatusText">Engine: <strong id="engineLabel">Apple M4 (Fine-Tuned)</strong></span>
-        </button>
+          <span id="engineStatusText">Engine: <strong>Qwen 2.5 3B (Local RAG)</strong></span>
+        </div>
       </div>
     </header>
 
-    <!-- Key & Engine Config Modal -->
-    <div id="keyModal" class="modal-overlay hidden">
-      <div class="modal-card glass-panel">
-        <div class="modal-header">
-          <h3>⚙️ Inference Engine & Keys</h3>
-          <button id="closeModalBtn" class="close-btn">&times;</button>
+    <!-- Main Content Grid: left = history, right = query + results -->
+    <main class="rag-main">
+      <!-- History Sidebar -->
+      <aside class="history-panel glass-panel">
+        <div class="history-header">
+          <span>🧾 Question History</span>
+          <button id="clearHistoryBtn" class="icon-btn" title="Clear history">🗑</button>
         </div>
-        <p class="modal-desc">
-          Choose the active inference engine for answering ETL interview questions:
-        </p>
-        <div class="engine-choice-wrap" style="display: flex; gap: 10px; margin-bottom: 15px;">
-          <label style="flex: 1; padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-            <input type="radio" name="engineOption" value="mlx" checked id="radioMLX">
-            <div>
-              <strong>🍎 Apple Silicon MLX</strong>
-              <div style="font-size: 11px; opacity: 0.7;">Qwen 2.5 1.5B (LoRA Fine-Tuned, Sub-30ms Offline)</div>
-            </div>
-          </label>
-          <label style="flex: 1; padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-            <input type="radio" name="engineOption" value="groq" id="radioGroq">
-            <div>
-              <strong>⚡ Groq LPU</strong>
-              <div style="font-size: 11px; opacity: 0.7;">Cloud Streaming (Qwen 3.8-27B / GPT-OSS)</div>
-            </div>
-          </label>
+        <div id="historyList" class="history-list">
+          <div class="history-empty">No questions yet. Ask something below.</div>
         </div>
-        <div class="key-input-wrap" id="groqInputWrap" style="margin-top: 10px;">
-          <input type="password" id="apiKeyInput" placeholder="Optional Groq API Key (gsk_...)" autocomplete="off">
-          <button id="saveKeyBtn" class="primary-btn">Save</button>
-        </div>
-        <div class="modal-footer">
-          <span class="privacy-note">🔒 Local model runs 100% on your device with no data leaving your Mac.</span>
-          <a href="https://console.groq.com/keys" target="_blank" rel="noopener" class="link-btn">Groq Key ↗</a>
-        </div>
-      </div>
-    </div>
+      </aside>
 
-    <!-- Main Content Grid -->
-    <main class="content-grid">
-      <!-- Query Panel -->
-      <section class="query-card glass-panel">
-        <form id="questionForm" class="search-form">
+      <!-- Query + Results -->
+      <section class="rag-content">
+        <form id="questionForm" class="search-form glass-panel">
           <label for="questionInput" class="input-label">Ask any ETL Interview Question</label>
           <div class="input-wrapper">
             <textarea
               id="questionInput"
-              placeholder="e.g., What are the test cases for SCD Type 2, or how do you validate incremental load?"
+              placeholder="e.g., What happens when the customer address changes? (paraphrased SCD Type 2)"
               rows="3"
               required
             ></textarea>
             <button type="submit" id="submitBtn" class="primary-btn">
-              <span class="btn-text">Search / Answer</span>
+              <span class="btn-text">Answer</span>
               <svg class="btn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13"></line>
                 <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
@@ -100,96 +70,78 @@
           </div>
         </form>
 
-        <!-- Quick Question Suggestions -->
         <div class="suggestions-section">
           <span class="suggestions-title">Quick Prompts:</span>
-          <div id="sampleChips" class="chips-container">
-            <!-- Populated dynamically via JS -->
-          </div>
+          <div id="sampleChips" class="chips-container"></div>
         </div>
-      </section>
 
-      <!-- Right / Bottom: Live Answer Panel -->
-      <section id="resultsSection" class="results-card glass-panel hidden">
-        <!-- Metrics Ribbon -->
-        <div class="metrics-ribbon">
-          <div class="metric-item">
-            <span class="metric-label">Execution Mode</span>
-            <div id="modeBadge" class="badge badge-exact">Exact Match</div>
-          </div>
-
-          <div class="metric-item">
-            <span class="metric-label">Similarity Score</span>
-            <div class="similarity-wrap">
-              <div class="progress-bar-bg">
-                <div id="similarityBar" class="progress-bar-fill" style="width: 100%;"></div>
+        <section id="resultsSection" class="results-card glass-panel hidden">
+          <!-- Metrics Ribbon -->
+          <div class="metrics-ribbon">
+            <div class="metric-item">
+              <span class="metric-label">Mode</span>
+              <div id="modeBadge" class="badge badge-generated">Grounded RAG</div>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Confidence</span>
+              <div class="similarity-wrap">
+                <div class="progress-bar-bg">
+                  <div id="similarityBar" class="progress-bar-fill" style="width: 0%;"></div>
+                </div>
+                <span id="similarityValue" class="metric-val">—</span>
               </div>
-              <span id="similarityValue" class="metric-val">1.00</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Retrieval</span>
+              <span id="retrievalValue" class="metric-val highlight">—</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">First Token</span>
+              <span id="ttftValue" class="metric-val">—</span>
             </div>
           </div>
 
-          <div class="metric-item">
-            <span class="metric-label">Total Latency</span>
-            <span id="latencyValue" class="metric-val highlight">12.8 ms</span>
-          </div>
-
-          <div class="metric-item">
-            <span class="metric-label">Topic</span>
-            <span id="topicTag" class="topic-tag">Data Warehouse</span>
-          </div>
-        </div>
-
-        <!-- Answer Content Box -->
-        <div class="answer-container">
-          <div class="answer-header">
-            <div class="answer-header-left">
-              <span class="answer-icon">💬</span>
-              <span class="answer-title">Answer</span>
+          <!-- Answer Content -->
+          <div class="answer-container">
+            <div class="answer-header">
+              <div class="answer-header-left">
+                <span class="answer-icon">💬</span>
+                <span class="answer-title">Answer</span>
+              </div>
+              <button id="copyBtn" class="icon-btn" title="Copy answer to clipboard">
+                <span id="copyText">Copy</span>
+              </button>
             </div>
-            <button id="copyBtn" class="icon-btn" title="Copy answer to clipboard">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-              </svg>
-              <span id="copyText">Copy</span>
-            </button>
+            <div id="answerBody" class="answer-body">
+              <div style="display: flex; align-items: center; gap: 8px; color: #94a3b8;">
+                <span class="status-dot" style="animation: pulse 1.2s infinite;"></span>
+                <span>Retrieving from knowledge base & generating grounded answer…</span>
+              </div>
+            </div>
           </div>
-          <div id="answerBody" class="answer-body">
-            <!-- Answer text injected here -->
-          </div>
-        </div>
 
-        <!-- Matched Context / Few-Shot Reference Drawer -->
-        <details class="context-drawer" id="contextDrawer">
-          <summary class="drawer-summary">
-            <span>📚 Matched Notebook Reference Pairs (Top 3 Context)</span>
-            <span class="drawer-arrow">▼</span>
-          </summary>
-          <div id="topMatchesList" class="matches-list">
-            <!-- Populated dynamically -->
+          <!-- Sources / Evidence -->
+          <div class="sources-header-row">
+            <span class="sources-title">📚 Sources (evidence)</span>
+            <span class="sources-hint">Click to copy source text</span>
           </div>
-        </details>
-      </section>
+          <div id="sourcesList" class="sources-list"></div>
+        </section>
 
-      <!-- Empty / Idle State Placeholder -->
-      <section id="emptyState" class="empty-state glass-panel">
-        <div class="empty-icon-wrap">
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          </svg>
-        </div>
-        <h3>Ready to query</h3>
-        <p>Type any ETL question above or click one of the quick prompts to test retrieval & Gemini Flash-Lite generation.</p>
+        <section id="emptyState" class="empty-state glass-panel">
+          <div class="empty-icon-wrap">🗂️</div>
+          <h3>Ready to query the knowledge base</h3>
+          <p>Ask anything about the ETL classroom notes. Answers are grounded strictly in the PDF.</p>
+        </section>
       </section>
     </main>
 
-    <!-- Footer -->
     <footer class="app-footer">
-      <p>Built for ETL Interview Prep • In-Memory Cosine Retrieval (<50ms) + Gemini Flash-Lite Few-Shot Human Tone</p>
+      <p>RAG Copilot • Hybrid Retrieval (FAISS + BM25) → Qwen 2.5 3B Grounded Generation • 100% local on Apple M4</p>
     </footer>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="/static/app.js"></script>
+  <script src="/static/rag/app.js"></script>
 </body>
 </html>

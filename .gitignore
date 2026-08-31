@@ -32,14 +32,6 @@ ENV/
 .env.local
 .env.*.local
 
-# MLX & Local Fine-Tuning Artifacts
-checkpoints/
-adapters/
-lora_adapters/
-*.safetensors
-*.gguf
-*.bin
-
 # macOS
 .DS_Store
 .AppleDouble
@@ -55,3 +47,16 @@ scratch/
 .idea/
 *.swp
 *.swo
+
+# Old fine-tuning artifacts (deprecated)
+checkpoints/
+adapters/
+lora_adapters/
+*.safetensors
+*.gguf
+
+# Generated RAG index (rebuilt with: python knowledge_base/build_index.py)
+knowledge_base/embeddings_cache/
+
+# Tool artifacts
+.kiro/

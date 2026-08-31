@@ -1,29 +1,24 @@
 """
-FastAPI Server for ETL Interview Q&A System with Rotated Gemini Proxy
+FastAPI Server for the ETL Interview RAG System.
+Local MLX generation only. Grounded answers from the PDF knowledge base.
 """
 
-import time
+import json
 import os
+import time
+from typing import Optional
+
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import Optional
-import json
-import uvicorn
 
-from qa_pipeline import (
-    QASystem,
-    EXACT_MATCH_THRESHOLD,
-    NEAR_MATCH_THRESHOLD,
-    TOP_K_CONTEXT,
-    GROQ_MODEL,
-    EMBEDDING_MODEL,
-    DEFAULT_GROQ_KEY
-)
+from config import HOST, PORT
+from rag.rag_system import RAGSystem
 
-app = FastAPI(title="ETL Interview Q&A Assistant", version="1.0.0")
+app = FastAPI(title="ETL Interview RAG Assistant", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -33,183 +28,150 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-qa_system = QASystem(api_key=DEFAULT_GROQ_KEY)
+# Load RAG system at startup (index + local LLM resident in memory)
+qa_system = RAGSystem(load_llm=True)
+
 
 class QueryRequest(BaseModel):
     question: str
-    api_key: Optional[str] = None
-    engine: Optional[str] = "mlx"  # "mlx" or "groq"
+
 
 class QueryResponse(BaseModel):
     question: str
     answer: str
     mode: str
-    engine: str = "mlx"
-    similarity: float
-    latency_ms: float
-    generation_ms: float = 0.0
-    topic: str = ""
-    top_matches: list = []
+    confidence: float
+    evidence: list
+    retrieval_ms: float
+    generation_ms: float
+    ttft_ms: float
+    total_ms: float
+    breakdown: dict
+
 
 @app.get("/api/health")
 def health_check():
-    mlx_active = bool(qa_system.mlx_generator and qa_system.mlx_generator.is_loaded)
-    return {
-        "status": "healthy",
-        "indexed_count": len(qa_system.index.qa_data),
-        "embedding_model": EMBEDDING_MODEL,
-        "generation_model": GROQ_MODEL,
-        "mlx_active": mlx_active,
-        "mlx_model": "Qwen 2.5 1.5B + Fine-Tuned LoRA (Apple Silicon MLX)",
-        "default_engine": "mlx" if mlx_active else "groq",
-        "has_groq_key": True,
-        "exact_threshold": EXACT_MATCH_THRESHOLD,
-        "near_threshold": NEAR_MATCH_THRESHOLD,
-    }
+    h = qa_system.health()
+    return h
+
 
 @app.get("/api/sample-questions")
 def get_sample_questions():
     return [
-        {"text": "Tell me about yourself / Self Introduction", "category": "General"},
-        {"text": "Explain your project architecture & data flow stages", "category": "Architecture"},
-        {"text": "difference between truncate and delete", "category": "SQL"},
-        {"text": "what is scd type 2 and how do you test it", "category": "SCD"},
-        {"text": "how to find 2nd highest salary in SQL", "category": "SQL Queries"},
-        {"text": "What is the difference between Star Schema and Snowflake Schema?", "category": "Data Warehouse"},
-        {"text": "What do you do if a developer pushes back and says a bug is expected behavior?", "category": "Situational (Trained MLX)"},
-        {"text": "How do you test real-time Kafka streaming data into Snowflake?", "category": "Streaming / DWH"}
+        {"text": "What is SCD Type 2?", "category": "SCD"},
+        {"text": "What happens when customer address changes?", "category": "SCD"},
+        {"text": "Difference between TRUNCATE and DELETE", "category": "SQL"},
+        {"text": "How to find 2nd highest salary in SQL", "category": "SQL Queries"},
+        {"text": "What is a Surrogate Key and why is it used?", "category": "Data Warehouse"},
+        {"text": "Star Schema vs Snowflake Schema", "category": "Data Warehouse"},
+        {"text": "Explain the Defect Life Cycle", "category": "Defect Life Cycle"},
+        {"text": "What are the Levels of Testing?", "category": "Testing"},
     ]
 
+
+@app.get("/api/sources/{page}")
+def get_source(page: int):
+    """Return the raw text of a given PDF page for source cross-referencing."""
+    from knowledge_base.pdf_loader import PDFLoader
+    from config import PDF_PATH
+    loader = PDFLoader(PDF_PATH)
+    pages = loader.extract_pages()
+    for p in pages:
+        if p["page"] == page:
+            return {"page": page, "text": p["text"]}
+    raise HTTPException(status_code=404, detail=f"Page {page} not found")
+
+
 @app.post("/api/ask", response_model=QueryResponse)
-async def ask_question(req: QueryRequest):
+def ask_question(req: QueryRequest):
     q = req.question.strip()
     if not q:
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
+    return qa_system.answer(q)
 
-    key_to_use = req.api_key.strip() if (req.api_key and req.api_key.strip()) else DEFAULT_GROQ_KEY
-    chosen_engine = req.engine if req.engine in ["mlx", "groq"] else "mlx"
-    
-    res = qa_system.answer(q, api_key=key_to_use, engine=chosen_engine)
-    return QueryResponse(
-        question=q,
-        answer=res["answer"],
-        mode=res["mode"],
-        engine=res.get("engine", chosen_engine),
-        similarity=res["similarity"],
-        latency_ms=res["latency_ms"],
-        generation_ms=res.get("generation_ms", 0.0),
-        topic=res.get("topic", "General"),
-        top_matches=res.get("top_matches", [])
-    )
 
 @app.post("/api/ask-stream")
-async def ask_question_stream(req: QueryRequest):
+def ask_question_stream(req: QueryRequest):
     q = req.question.strip()
     if not q:
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
 
-    key_to_use = req.api_key.strip() if (req.api_key and req.api_key.strip()) else DEFAULT_GROQ_KEY
-    chosen_engine = req.engine if req.engine in ["mlx", "groq"] else "mlx"
     t0 = time.time()
 
-    # 1. Search index
-    results = qa_system.index.search(q, top_k=TOP_K_CONTEXT)
-    top = results[0]
+    # 1. Retrieve + route (fast, no generation yet)
+    retrieved, breakdown = qa_system.retriever.retrieve(q)
+    top_score = retrieved[0]["score"] if retrieved else 0.0
+    retrieve_ms = (time.time() - t0) * 1000
 
-    # 2. If exact match, send immediately in single SSE packet
-    if top["similarity"] >= EXACT_MATCH_THRESHOLD:
-        elapsed_ms = round((time.time() - t0) * 1000, 1)
+    gen_result = qa_system.generator.generate(q, retrieved, top_score)
+
+    # Route through the quick path (unsupported/extracted/LLM-fallbacks) that
+    # does NOT stream — send as a single packet.
+    if gen_result["mode"] != "generated" or not (
+        qa_system.llm and qa_system.llm.is_loaded
+    ):
         payload = {
-            "type": "exact",
-            "mode": "exact_match",
-            "engine": chosen_engine,
-            "similarity": round(top["similarity"], 3),
-            "topic": top["topic"],
-            "matched_question": top["question"],
-            "text": top["answer"],
-            "latency_ms": elapsed_ms,
-            "top_matches": results
+            "type": "complete",
+            "question": q,
+            "answer": gen_result["answer"],
+            "mode": gen_result["mode"],
+            "confidence": round(top_score, 4),
+            "evidence": retrieved,
+            "retrieval_ms": round(retrieve_ms, 2),
+            "generation_ms": round(gen_result.get("generation_ms", 0), 2),
+            "ttft_ms": round(gen_result.get("ttft_ms", 0), 2),
+            "breakdown": breakdown,
+            "total_ms": round((time.time() - t0) * 1000, 2),
         }
-        async def exact_stream():
+        async def single():
             yield f"data: {json.dumps(payload)}\n\n".encode("utf-8")
-            
-        return StreamingResponse(exact_stream(), media_type="text/event-stream")
+        return StreamingResponse(single(), media_type="text/event-stream")
 
-    # 3. Stream unknown response chunk by chunk (MLX or Groq)
-    async def stream_tokens():
+    # 2. Otherwise stream the LLM tokens over SSE
+    def stream_tokens():
         meta = {
             "type": "meta",
-            "mode": "generated_unknown",
-            "engine": chosen_engine,
-            "similarity": round(top["similarity"], 3),
-            "topic": top.get("topic", "ETL Testing"),
-            "matched_question": top["question"],
-            "top_matches": results,
-            "ttft_ms": round((time.time() - t0) * 1000, 1)
+            "question": q,
+            "mode": "generated",
+            "confidence": round(top_score, 4),
+            "evidence": retrieved,
+            "retrieval_ms": round(retrieve_ms, 2),
+            "breakdown": breakdown,
+            "ttft_ms": round((time.time() - t0) * 1000, 2),
         }
         yield f"data: {json.dumps(meta)}\n\n".encode("utf-8")
 
-        full_text = []
-        if chosen_engine == "mlx":
-            if not qa_system.mlx_generator:
-                try:
-                    qa_system.mlx_generator = MLXLocalGenerator()
-                except Exception as e:
-                    print(f"Failed to lazily load MLX: {e}")
+        gen = qa_system.llm.generate(q, retrieved, stream=True)
+        full = []
+        first_ttft = None
+        for tok, ttft in gen:
+            if tok == "":
+                break
+            if first_ttft is None and ttft:
+                first_ttft = ttft
+            full.append(tok)
+            yield f"data: {json.dumps({'type': 'token', 'text': tok})}\n\n".encode("utf-8")
 
-            if qa_system.mlx_generator and qa_system.mlx_generator.is_loaded:
-                for token in qa_system.mlx_generator.stream_generate(q):
-                    full_text.append(token)
-                    chunk_data = {"type": "token", "text": token}
-                    yield f"data: {json.dumps(chunk_data)}\n\n".encode("utf-8")
-            else:
-                fallback_ans = top.get("answer", "No local model loaded and no match found.")
-                full_text.append(fallback_ans)
-                chunk_data = {"type": "token", "text": fallback_ans}
-                yield f"data: {json.dumps(chunk_data)}\n\n".encode("utf-8")
-        else:
-            if not key_to_use:
-                err_msg = "⚠️ Please configure a valid Groq API Key in settings or use the Local Apple Silicon MLX engine."
-                full_text.append(err_msg)
-                yield f"data: {json.dumps({'type': 'token', 'text': err_msg})}\n\n".encode("utf-8")
-            else:
-                qa_system.generator.set_api_key(key_to_use)
-                for token in qa_system.generator.stream_generate(q, results):
-                    full_text.append(token)
-                    chunk_data = {"type": "token", "text": token}
-                    yield f"data: {json.dumps(chunk_data)}\n\n".encode("utf-8")
-
-        total_ms = round((time.time() - t0) * 1000, 1)
-        done_data = {
+        done = {
             "type": "done",
-            "total_latency_ms": total_ms
+            "answer": "".join(full),
+            "ttft_ms": round(first_ttft or 0, 2),
+            "generation_ms": round((time.time() - t0) * 1000, 2),
+            "total_ms": round((time.time() - t0) * 1000, 2),
         }
-        yield f"data: {json.dumps(done_data)}\n\n".encode("utf-8")
-
-        # Cache completed answer
-        final_answer = "".join(full_text).strip()
-        if not final_answer.startswith("⚠️"):
-            cache_key = f"{chosen_engine}:{q.lower()}"
-            qa_system.response_cache[cache_key] = {
-                "answer": final_answer,
-                "mode": "generated_unknown",
-                "engine": chosen_engine,
-                "similarity": round(top["similarity"], 3),
-                "matched_question": top["question"],
-                "topic": top.get("topic", "ETL Testing"),
-                "latency_ms": total_ms,
-                "generation_ms": total_ms,
-                "top_matches": results
-            }
+        yield f"data: {json.dumps(done)}\n\n".encode("utf-8")
 
     return StreamingResponse(stream_tokens(), media_type="text/event-stream")
 
+
 os.makedirs("static", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/")
 def serve_index():
     return FileResponse("static/index.html")
 
+
 if __name__ == "__main__":
-    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=False)
+    uvicorn.run("app:app", host=HOST, port=PORT, reload=False)
