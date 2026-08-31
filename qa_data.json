@@ -6,13 +6,178 @@
   },
   {
     "question": "Why should we hire you? / Why are you a good fit for this ETL Tester role?",
-    "answer": "Why you should hire me:\n\n• I have 4.2 years of solid hands-on experience in ETL and Data Warehouse testing, specifically on enterprise retail DWH projects.\n• I have strong SQL skills to write complex queries for source-to-target mapping, MINUS validations, duplicate checks, and SCD Type 2 history testing.\n• In my previous project at HCL, I worked daily with Informatica PowerCenter, Oracle DB, TOAD, and Unix shell commands.\n• I have complete end-to-end testing lifecycle knowledge—from reviewing STM documents, writing test cases in HP ALM, raising defects to developers, and sending Daily Status Reports (DSR).\n• I am a proactive team player and a fast learner who can hit the ground running with minimal hand-holding.",
+    "answer": "Why you should hire me:\n• I have 4.2 years of solid hands-on experience in ETL and Data Warehouse testing, specifically on enterprise retail DWH projects.\n• I have strong SQL skills to write complex queries for source-to-target mapping, MINUS validations, duplicate checks, and SCD Type 2 history testing.\n• In my previous project at HCL, I worked daily with Informatica PowerCenter, Oracle DB, TOAD, and Unix shell commands.\n• I have complete end-to-end testing lifecycle knowledge—from reviewing STM documents, writing test cases in HP ALM, raising defects to developers, and sending Daily Status Reports (DSR).\n• I am a proactive team player and a fast learner who can hit the ground running with minimal hand-holding.",
     "topic": "HR & General Interview"
   },
   {
     "question": "What are your roles and responsibilities in your project as an ETL Software Testing Engineer?",
-    "answer": "The Role in my last Project as Software Testing Engineer.\nAnd responsibilities are:\n• First I go through the technical documents such as source target mapping (STM).\n• Then I have understood the client requirement and come up with high level scenario.\n• Then I have developed the test cases and those test cases are undergone pear review.\n• Once the test cases approved by Team Lead, we have uploaded in HP ALM.\n• Once build deployed in testing environment, we start executing test cases.\n• If any deviation between actual and expected result then I have raise the bug report to particular developer and I have follow-up until to it has resolved.\n• I also assist team lead to produce test plans.\n• Even I have part of all calls like scrum call, client call, Standup call, weekly call and monthly call.\n• At end of the day (EOD), I have submitted the daily status report to team lead.",
-    "topic": "Roles & Responsibilities"
+    "answer": "The Role in my last Project as Software Testing Engineer.\nAnd responsibilities are:\n• First I go through the technical documents such as source target mapping (STM).\n• Then I have understood the client requirement and come up with high level scenario.\n• Then I have developed the test cases and those test cases are undergone pear review.\n• Once the test cases approved by Team Lead, we have uploaded in HP ALM.\n• Once build deployed in testing environment, we start executing test cases.\n• If any deviation between actual and expected result then I have raise the bug report to particular developer and I have follow-up until to it has resolved.\n• Once the issue resolved we do re-testing and regression testing.\n• Sending Daily Status Report (DSR) and Weekly Status Report (WSR) to on-site coordinator and Test Lead.\n• Attending daily stand-up meeting and defect review meeting with developer and test lead.\n• Performing sanity, functional, integration, system, regression, and data reconciliation testing using SQL queries (MINUS, duplicate checks, SCD2).",
+    "topic": "ETL Testing Roles"
+  },
+  {
+    "question": "What is a Burn-Down Chart in Agile Scrum?",
+    "answer": "Burn-Down Chart:\n• It is a graphical representation of chart it shows the outstanding work against project time.\n• This will be helpful for completing the time for completion of product.\n• From that we can see the progress of the project.\n• The Scrum Master manages the sprint and product burn-down chart.\n• On the X-axis it tracks project time / sprint days, and on the Y-axis it tracks remaining effort / story points or tasks to be completed.",
+    "topic": "Agile Methodology"
+  },
+  {
+    "question": "What is Agile Methodology and what are its 6 phases / stages?",
+    "answer": "Agile Methodology:\nAgile Methodology is the method used for the developing the product or application of the software.\nThere are 6 phases or stages or tabs:\n1) Project Initiation\n2) Sprint Planning\n3) Daily Scrum\n4) Sprint Retrospective\n5) Sprint Demo\n6) Release\n\nDetails of the 6 phases:\n1) Project Initiation:\n• Product Owner falls in this category (Marketing Person or Business Analyst).\n• He interacts with client or stakeholder or customer.\n• Collects the requirements from the client.\n• Starts the project work and maintains vision of what should be delivered.\n\n2) Sprint Planning: (Starting & ending time - Sprint means segment)\n• Fixed time duration for project working is called sprint (usually 1 to 4 weeks; in our project sprint is 2 weeks / 10 days).\n• Product owner and team decide the sprint scope.\n• Before each sprint, team conducts test planning and answers WH questions (What, Who, When, How).\n\n3) Daily Scrum: (Involves all team)\n• Short daily meeting (15 minutes) to update on project progress:\n  - What did we do yesterday?\n  - What will you do today?\n  - Are there any obstacles / blockers?\n\n4) Sprint Retrospective:\n• Conducted at the end of every sprint after release:\n  - What went well during sprint?\n  - What went wrong during sprint?\n  - How can we improve the sprint in future?\n\n5) Sprint Demo:\n• Presentation layer from scrum team to Client or Stakeholder.\n• Testing team focuses on acceptance criteria.\n\n6) Release:\n• Release of the product or application to the client.",
+    "topic": "Agile Methodology"
+  },
+  {
+    "question": "Who is a Scrum Master and what are their responsibilities?",
+    "answer": "Scrum Master:\n• He is a supervisor and he removes obstacles or resolves the problems/blockers faced by the team.\n• Without scrum master the project is at high risk of failures.\n• Scrum Master is present in offshore / onshore.\n• Project Manager is not a scrum master.\n• The scrum master manages the sprint and product burn-down chart.\n• Facilitates daily scrum stand-ups, sprint planning, and sprint retrospective meetings.",
+    "topic": "Agile Methodology"
+  },
+  {
+    "question": "What are Epic, User Story, Story Points, PBI, and SBI in Agile?",
+    "answer": "Agile Method Terminologies:\n\n1. Epic:\n• Epics are large pieces of work (Features, customer requirement, business requirement).\n• Epics are broken down into smaller items called Stories.\n• Each story contains individual requirements called Product Backlog Items (PBI).\n\n2. User Story:\n• It is a non-technical statement of software system requirements written from the end user point of view.\n\n3. Story Points:\n• Story points are used to determine workload effort and complexity for a user story.\n\n4. PBI (Product Backlog Item):\n• It is a list of requirements required by the customer.\n• It is a single element of work that exists in PB (Product Backlog).\n\n5. SBI (Sprint Backlog Item):\n• It is a segment of PBI that is selected by the team during the scrum sprint (Number of PBIs considered in the current sprint).",
+    "topic": "Agile Methodology"
+  },
+  {
+    "question": "What are the different environments in project execution?",
+    "answer": "Environments in project completion:\na) Dev Environment:\n• Developers are involved (writing code, unit testing).\n\nb) Test Environment:\n• Testing team is involved (sanity, functional, integration, regression testing).\n\nc) Client Environment / UAT:\n• Client, testing team, and development team are involved (User Acceptance Testing).\n\nd) Production Environment:\n• End users are involved (live live application).",
+    "topic": "Agile Methodology"
+  },
+  {
+    "question": "What are the advantages and disadvantages of Agile Methodology?",
+    "answer": "Agile Method Advantages and Disadvantages:\n\nAdvantages:\n• Highly flexible to requirement changes.\n• Fast implementation of any changes.\n• Incremental updates of software.\n• Faster time to market.\n• More rapid development.\n• Higher satisfaction from customer.\n• Higher productivity and low project cost.\n\nDisadvantages:\n• Lack of detailed documentation may lead to communication gaps.\n• Add-on training is required in some cases.\n• User is required to test and analyze on daily basis.",
+    "topic": "Agile Methodology"
+  },
+  {
+    "question": "What are the Levels of Testing in software testing?",
+    "answer": "LEVELS OF TESTING:\n1. Unit Testing\n2. Smoke Testing\n3. Sanity Testing\n4. Functional Testing\n5. Integration Testing\n6. System Testing\n7. Re-Testing\n8. Regression Testing\n9. UAT Testing (User Acceptance Testing)\n\nTesting Types:\na) White Box Testing: Needs internal knowledge of code/language; done by developer.\nb) Black Box Testing: Does not require internal knowledge of language; done by tester.\nc) Grey Box Testing: Requires semi-internal knowledge of database and structure; done by ETL/automation tester.\nNote on Exploratory Testing: Learning and testing are done in parallel. Takes place when domain changes or documentation is minimal.",
+    "topic": "Levels of Testing"
+  },
+  {
+    "question": "Explain the Levels of Testing Matrix (Type, Who will test, Environment, Purpose)",
+    "answer": "Levels of Testing Comparison Matrix:\n\n1. Unit Testing:\n• Type: White Box Testing\n• Who: Developer\n• Environment: Developer Environment\n• Purpose: Make sure that coding part is working properly or not.\n\n2. Smoke Testing:\n• Type: Black Box Testing\n• Who: Developer or Deployment Team\n• Environment: Deployment Environment\n• Purpose: Make sure that all main critical features are working properly before accepting build.\n\n3. Sanity Testing:\n• Type: Black Box Testing\n• Who: Tester\n• Environment: Testing Environment\n• Purpose: Make sure that build is stable and bug fixes are working properly.\n\n4. Functional Testing:\n• Type: Black Box Testing\n• Who: Tester\n• Environment: Testing Environment\n• Purpose: Make sure each unit function works properly as per requirement.\n\n5. Integration Testing:\n• Type: Black Box Testing\n• Who: Tester\n• Environment: Testing Environment\n• Purpose: Make sure that after combining two components they communicate with each other properly.\n\n6. System Testing:\n• Type: Black Box Testing\n• Who: Tester\n• Environment: Testing Environment\n• Purpose: Make sure whole system/application communicates end-to-end properly.\n\n7. Re-Testing:\n• Type: Black Box Testing\n• Who: Tester\n• Environment: Testing Environment\n• Purpose: After developer fixes a bug, re-testing is carried out to ensure the specific defect is resolved.\n\n8. Regression Testing:\n• Type: Black Box Testing\n• Who: Tester\n• Environment: Testing Environment\n• Purpose: If anything changes in the application, make sure existing working features are not broken and assess impact on other modules.\n\n9. UAT Testing (User Acceptance Test):\n• Type: Black Box Testing\n• Who: Tester in front of Client / Business Users\n• Environment: Client Environment\n• Purpose: Make sure main features work as per business criteria, agreements, and acceptance documents.",
+    "topic": "Levels of Testing"
+  },
+  {
+    "question": "What is SDLC vs STLC and what are their stages?",
+    "answer": "SDLC vs STLC:\n\n1. SDLC (Software Development Life Cycle):\nMethod of developing the software product.\nStages:\n• Customer Requirement (Done by Product Owner)\n• Analysis (Done by Project Manager, QA, Business Analyst)\n• Design (Done by System/Architecture Developer)\n• Coding (Done by Developer Team)\n• Testing (Done by Testing Team)\n• Release / Maintenance\n\n2. STLC (Software Test Life Cycle):\nProcess or method of testing the software product.\nStages:\n• Requirement Analysis (Review STM document, PRD)\n• Test Planning (Testing team defines scope, resource, WH questions)\n• Test Case Development (Tester writes test cases using BVA/ECP strategies)\n• Test Environment Setup (Test data and environment ready)\n• Test Execution (Tester executes test cases in test environment)\n• Defect Reporting & Tracking (Logging bugs in HP ALM / Jira)\n• Test Closure / Sign-off (UAT and release criteria met)",
+    "topic": "Manual Testing Fundamentals"
+  },
+  {
+    "question": "What is a Test Case, Test Case Template, and Test Case Design Strategies (BVA)?",
+    "answer": "Test Case:\nIt is nothing but a sequential, elaborate, and executable form of requirement.\n\nTest Case Template Fields:\n• Test Scenario ID / Name\n• Test Case Number (TC_01, TC_02)\n• SQL Query / Steps to Execute\n• Test Description\n• Expected Result\n• Actual Result\n• Status (Pass / Fail / Blocked)\n• Remarks / Defect ID\n\nTest Case Design Strategies:\na) Boundary Value Analysis (BVA):\n• Defines the range of values to test (Min, Min+1, Max-1, Max, Min-1, Max+1).\n• Used whenever input has a defined boundary range (e.g., password length 4 to 12 characters, age between 18 and 60).\nb) Equivalence Class Partitioning (ECP):\n• Divides input data into valid and invalid equivalence classes.",
+    "topic": "Manual Testing Fundamentals"
+  },
+  {
+    "question": "Explain the Defect Life Cycle / Bug Life Cycle step by step.",
+    "answer": "Defect Life Cycle (Bug Life Cycle):\n\n1. During execution of test cases, if any deviation between actual and expected result is found, tester collects screenshots/artifacts and contacts on-site coordinator / dev team.\n2. Based on discussion, tester logs a bug report in HP ALM / Jira with status as NEW.\n3. Developer reviews the bug and sets one of four initial states:\n   • OPEN: Bug is valid; developer is working on fixing it.\n   • REJECT: Bug is invalid / working as per specification.\n   • DUPLICATE: Bug is valid, but already reported by another tester.\n   • DEFERRED (Differed): Bug is valid, but will not be fixed in current sprint; deferred to future release.\n4. Once developer fixes the bug and deploys the build to test environment, status is updated to FIXED.\n5. Tester picks the build and sets status to RETEST.\n6. If actual result matches expected result, tester changes status to CLOSED.\n7. If actual result still fails or bug is not fixed, tester changes status to REOPEN and assigns back to developer.\n8. Process repeats until all defects reach CLOSED status.",
+    "topic": "Defect Life Cycle"
+  },
+  {
+    "question": "What is the FLASHBACK command in Oracle SQL and how do you recover a dropped table?",
+    "answer": "FLASHBACK Command in Oracle:\n• By using FLASHBACK, we can restore a dropped table and its data from the Recycle Bin before it is permanently purged.\n• When a table is dropped with `DROP TABLE <table_name>;`, Oracle moves it to the Recycle Bin.\n• Syntax to recover:\n  `FLASHBACK TABLE <table_name> TO BEFORE DROP;`\n\nExample:\n```sql\n-- Create and drop table\nDROP TABLE COLLEGE_1;\n\n-- Restore table from recycle bin\nFLASHBACK TABLE COLLEGE_1 TO BEFORE DROP;\n\n-- Verify table is restored\nSELECT * FROM COLLEGE_1;\n```\nNote: If `DROP TABLE <table_name> PURGE;` is used, the table bypasses the Recycle Bin and cannot be recovered via Flashback.",
+    "topic": "SQL Commands"
+  },
+  {
+    "question": "What is the difference between TRANSLATE and REPLACE in SQL?",
+    "answer": "Difference between TRANSLATE and REPLACE in SQL:\n\n1. TRANSLATE:\n• Translates characters on a character-by-character basis (1-to-1 character mapping).\n• Syntax: `TRANSLATE('input_string', 'from_chars', 'to_chars')`\n• Example: `SELECT TRANSLATE('abcdef', 'abc', 'bcd') FROM DUAL;` -> Output: `bcddef`\n• Example: `SELECT TRANSLATE('Raj', 'j', 'm') FROM DUAL;` -> Output: `Ram`\n\n2. REPLACE:\n• Replaces an entire substring / pattern with a new string.\n• Syntax: `REPLACE('input_string', 'search_string', 'replacement_string')`\n• Example: `SELECT REPLACE('Raj is tester', 'Raj', 'Sam') FROM DUAL;` -> Output: `Sam is tester`\n\nSummary:\n• TRANSLATE works at character level (single character substitution).\n• REPLACE works at string / word level (substring replacement).",
+    "topic": "SQL Functions"
+  },
+  {
+    "question": "What are Character Functions in SQL (INSTR, SUBSTR, LENGTH, LPAD, RPAD) with examples?",
+    "answer": "Character Functions in SQL:\n\n1. INSTR (In-String):\n• Returns the position of a character or substring within a string.\n• Syntax: `INSTR(string, search_char, [start_position], [nth_occurrence])`\n• Example: `SELECT INSTR('rajashekhar', 'a', 1, 3) FROM DUAL;` -> Returns position of 3rd 'a'.\n• Example: `SELECT INSTR('rajashekhar', 'a', -1, 2) FROM DUAL;` -> Searches backwards.\n\n2. SUBSTR (Substring):\n• Extracts a portion of a string based on start position and length.\n• Syntax: `SUBSTR(string, start_position, [length])`\n• Example: `SELECT SUBSTR('rajashekhar@gmail.com', 1, INSTR('rajashekhar@gmail.com', '@') - 1) FROM DUAL;` -> Output: `rajashekhar`\n\n3. LENGTH:\n• Returns the total number of characters in a string.\n• Example: `SELECT LENGTH('Menards') FROM DUAL;` -> Returns 7.\n\n4. LPAD / RPAD:\n• Pads string with specified character on left or right side to reach target length.\n• Example: `SELECT LPAD('100', 6, '0') FROM DUAL;` -> Output: `000100`\n\n5. TRIM / LTRIM / RTRIM:\n• Strips leading, trailing, or both whitespace / characters from a string.",
+    "topic": "SQL Functions"
+  },
+  {
+    "question": "What are Date Functions in SQL (MONTHS_BETWEEN, ADD_MONTHS, NEXT_DAY, LAST_DAY, SYSDATE)?",
+    "answer": "Date Functions in SQL:\n\n1. MONTHS_BETWEEN:\n• Calculates the number of months between two dates.\n• Syntax: `MONTHS_BETWEEN(date1, date2)`\n• If date1 > date2: returns positive number.\n• If date1 < date2: returns negative number.\n• Example: `MONTHS_BETWEEN('31-MAR-1995', '28-FEB-1994')` -> Returns `13`\n• Example: `SELECT ROUND(MONTHS_BETWEEN(SYSDATE, HIREDATE)/12, 1) AS Experience_Years FROM EMP;`\n\n2. ADD_MONTHS:\n• Adds n months to a date.\n• Example: `SELECT ADD_MONTHS(SYSDATE, 3) FROM DUAL;`\n\n3. NEXT_DAY:\n• Returns the date of the next specified weekday.\n• Example: `SELECT NEXT_DAY(SYSDATE, 'FRIDAY') FROM DUAL;`\n\n4. LAST_DAY:\n• Returns the last day of the month for given date.\n• Example: `SELECT LAST_DAY(SYSDATE) FROM DUAL;`\n\n5. SYSDATE:\n• Returns current database server system date and time.",
+    "topic": "SQL Functions"
+  },
+  {
+    "question": "What is the difference between DECODE and CASE statement in SQL?",
+    "answer": "Difference between DECODE and CASE:\n\n1. DECODE:\n• Oracle proprietary function (not ANSI SQL standard).\n• Evaluates only equality conditions (`=`).\n• Can only be used in `SELECT` statements.\n• Syntax: `DECODE(column, val1, result1, val2, result2, default_result)`\n\n2. CASE:\n• ANSI SQL standard (works in Oracle, SQL Server, MySQL, Postgres, Snowflake).\n• Evaluates complex conditions (`=`, `>`, `<`, `BETWEEN`, `LIKE`, `IN`, `AND`, `OR`).\n• Can be used in `SELECT`, `UPDATE`, `WHERE`, and `ORDER BY` clauses.\n• Syntax:\n```sql\nCASE\n  WHEN salary >= 5000 THEN 'Grade A'\n  WHEN salary >= 3000 THEN 'Grade B'\n  ELSE 'Grade C'\nEND\n```",
+    "topic": "SQL Conditional Logic"
+  },
+  {
+    "question": "What is the difference between VIEW and MATERIALIZED VIEW?",
+    "answer": "Difference between VIEW and MATERIALIZED VIEW:\n\n1. VIEW (Virtual Table):\n• Stores the query definition logically; does NOT store data physically on disk.\n• No database disk space consumed.\n• Every time the view is queried, it executes the underlying SQL query against base tables.\n• Cannot be accessed if base table is dropped.\n• Primarily used for security (restricting column/row access) and query simplification.\n\n2. MATERIALIZED VIEW:\n• Stores both the query definition and the resulting data physically on disk.\n• Consumes physical database storage.\n• Queries run much faster because pre-computed data is read directly without re-joining base tables.\n• Data must be refreshed periodically (Complete, Fast/Log-based, On Demand, On Commit).\n• Accessible even if base table is temporarily offline.\n• Primarily used for performance optimization in Data Warehouses and reporting.",
+    "topic": "SQL Views & Objects"
+  },
+  {
+    "question": "What is the difference between Primary Key, Surrogate Key, Unique Key, and Foreign Key?",
+    "answer": "Key Differences between Database Keys:\n\n1. Primary Key:\n• Enforces uniqueness + NOT NULL (`PK = Unique + Not Null`).\n• Each table can have only one Primary Key.\n• System automatically creates a clustered / unique index on PK column.\n• Used in OLTP systems as natural/business identifier (e.g. `SSN`, `Employee_ID`).\n\n2. Surrogate Key:\n• Sequentially generated integer (1, 2, 3...) with no business meaning.\n• Managed by ETL pipeline (Informatica Sequence Generator or DB Sequence).\n• Used in OLAP / Data Warehouse Dimension tables to handle SCD Type 2 history.\n• Numeric datatype for high join performance with Fact tables.\n\n3. Unique Key:\n• Enforces unique values across column, but allows NULL values (one or multiple NULLs depending on RDBMS).\n• Table can have multiple Unique Keys.\n\n4. Foreign Key:\n• Column in a table that references the Primary Key / Unique Key of another table.\n• Establishes referential integrity relationship (e.g. Fact table FK -> Dimension table PK/SK).\n• Allows duplicate values and NULL values.",
+    "topic": "Database Constraints"
+  },
+  {
+    "question": "What is the difference between Stored Procedure and Function in SQL?",
+    "answer": "Difference between Stored Procedure and Function:\n\n1. Stored Procedure:\n• May or may not return a value (can return 0, 1, or multiple output parameters via `OUT`).\n• Can execute all DML statements (`INSERT`, `UPDATE`, `DELETE`, `MERGE`).\n• Cannot be called directly from inside a SQL `SELECT` statement (must use `EXEC` / `CALL`).\n• Used to execute complex business processing and ETL data pipelines.\n\n2. Function:\n• Must return exactly one value.\n• Cannot execute DML statements (read-only computation).\n• Can be called directly within a SQL `SELECT` statement, `WHERE` clause, or expressions.\n• Used for calculations and data formatting.",
+    "topic": "Database Objects"
+  },
+  {
+    "question": "What is the difference between ETL Testing and Manual / Functional Testing?",
+    "answer": "Difference between ETL Testing and Manual Functional Testing:\n\n1. ETL Testing:\n• Focuses on backend data transformation, data warehouse pipelines, and large volumes of data.\n• Involves extracting from heterogeneous sources (Flat files, XML, SAP, Oracle) into staging and target DWH.\n• Clear visibility into transformation business logic via STM mapping documents and SQL queries.\n• Involves heavy SQL query writing (MINUS queries, aggregations, SCD2 tracking, row reconciliation).\n• High data volume testing (millions of records).\n\n2. Manual Functional Testing:\n• Focuses on frontend GUI, user experience, button clicks, and screen-level validations.\n• Limited or no heavy SQL queries; mostly UI inputs and form validation.\n• Does not validate complex data transformation rules across multiple database layers.",
+    "topic": "ETL vs Manual Testing"
+  },
+  {
+    "question": "What are essential Unix commands used by an ETL Tester?",
+    "answer": "Essential Unix Commands for ETL Testers:\n\n1. `wc -l <filename>`: Count total number of lines in source/target flat files for row reconciliation.\n2. `grep \"ERROR\" session.log`: Search for errors, rejects, or specific text patterns in log files.\n3. `diff file1.txt file2.txt` / `cmp file1 file2`: Compare two files line-by-line or byte-by-byte.\n4. `comm file1.txt file2.txt`: Compare two sorted files (column 1: unique to file1, column 2: unique to file2, column 3: common lines).\n5. `find /work -name \"*.csv\" -print`: Locate files across directories based on pattern, timestamp, or size.\n6. `sort filename`: Sort lines of text files alphabetically or numerically (`sort -n`).\n7. `uniq filename` / `sort file | uniq -d`: Filter duplicates or print only duplicate lines (`-d`).\n8. `head -n 20 file.txt` / `tail -n 20 file.txt`: View first 20 or last 20 lines of large data files.\n9. `sed 's/,/|/g' file.csv`: Stream editor for find-and-replace (e.g. changing delimiters).\n10. `awk -F',' '{print $1, $3}' file.csv`: Extract specific columns from delimited flat files.\n11. `chmod 755 script.sh`: Modify file permissions.\n12. `crontab -l`: View scheduled batch jobs and ETL shell execution schedules.",
+    "topic": "Unix Commands"
+  },
+  {
+    "question": "Explain your project architecture & data flow stages in detail.",
+    "answer": "Project Architecture & Data Flow Stages:\n\nIn our Menards Retail Data Warehouse project, data flows through four distinct stages:\n\n1. Source Systems:\n• Multiple OLTP sources (Oracle POS tables, CSV flat files from store inventory, SAP order logs, legacy flat files).\n\n2. Staging Area:\n• Raw data is extracted as-is into staging tables using Informatica PowerCenter without transformation.\n• Validation: Row count reconciliation, file header/trailer validation, delimiter checks.\n\n3. Transformation / Intermediate Layer:\n• Data cleansing, duplicate removal, business rules, format conversion, lookup resolution, and surrogate key generation.\n• Validation: Range checks, data type casting, surrogate key sequential generation, null checks on mandatory attributes.\n\n4. Target Data Warehouse (OLAP):\n• Cleaned data loaded into Dimensional Model (Star Schema / Fact & Dimension tables).\n• Validation: MINUS queries between source & target, SCD Type 2 history checks, foreign key referential integrity between fact & dimension tables, duplicate checks.",
+    "topic": "Project Architecture"
+  },
+  {
+    "question": "What is the difference between ER modeling and Dimensional modeling?",
+    "answer": "Difference between Entity-Relationship (ER) and Dimensional Modeling:\n\n1. ER Modeling:\n• Focuses on eliminating data redundancy and normalizing data (typically 3NF).\n• Represents real-world entities and relationships.\n• Used in OLTP systems for high-volume transactions and fast write operations.\n• Deeply nested relational structures with many joined connection tables.\n• Slower for analytical reporting due to complex multi-table joins.\n\n2. Dimensional Modeling:\n• Focuses on business process metrics and analytical queries (OLAP).\n• Represents data in Fact tables (measures/metrics) and Dimension tables (contextual textual attributes).\n• De-normalized design (Star Schema / Snowflake Schema) optimized for read performance.\n• Highly intuitive for business users and BI reporting tools (Tableau, PowerBI, Cognos).\n• Faster analytical query performance with fewer joins.",
+    "topic": "Data Warehouse"
+  },
+  {
+    "question": "What are the test cases and validation steps for SCD Type 2 (Initial Load and Incremental Load)?",
+    "answer": "SCD Type-2 (Slowly Changing Dimension Type 2) Validation:\nSCD Type 2 maintains full history by adding a new record with versioning/effective dates whenever a dimension attribute changes.\n\nGeneric fields generated by ETL:\n• Surrogate Key (SK)\n• Natural Key (ID)\n• ETL Effective Start Date (e.g. 01-Jan-20)\n• ETL Effective End Date (e.g. 31-Dec-2099 for active row)\n• Active Row Flag ('A' for active, 'H' for historical / 'Y'/'N')\n• Version Number (1, 2, 3...)\n• ETL Process Date\n\nValidation Test Cases:\n1. Initial Load:\n   - Verify job runs successfully.\n   - Surrogate Key is generated automatically, in sequential incremental numeric order.\n   - ETL Effective Start Date and ETL Process Date must be same (current batch date).\n   - ETL Effective End Date must be high future date (e.g., 31-Dec-2099 or 9999-12-31).\n   - Active Row Flag must be 'A' (Active).\n   - Version Number must be 1.\n\n2. Incremental / Delta Load (when a record changes, e.g. City changed from New York to Florida):\n   - For Old Record: Active Row Flag changes from 'A' to 'H' (Historical). Effective End Date updates to (New Batch Date - 1).\n   - For New Record: Inserted with new Surrogate Key (incremental). Version number increments to 2. Active Row Flag set to 'A'. Effective Start Date is new batch date. Effective End Date set to 31-Dec-2099.\n   - Unchanged records remain intact with Version 1 and Active flag 'A'.",
+    "topic": "SCD"
+  },
+  {
+    "question": "What is the difference between TRUNCATE and DELETE in SQL?",
+    "answer": "Difference between TRUNCATE and DELETE:\n\n1. TRUNCATE:\n• DDL (Data Definition Language) command.\n• Removes all rows from a table immediately and deallocates storage space.\n• Does NOT record individual row deletions in transaction redo log (minimal logging).\n• Faster execution than DELETE.\n• Cannot use `WHERE` clause (truncates whole table).\n• Resets table high-water mark (HWM) and identity/sequence seed.\n• Cannot be rolled back in most standard database operations.\n\n2. DELETE:\n• DML (Data Manipulation Language) command.\n• Removes specific rows satisfying a condition or all rows if `WHERE` is omitted.\n• Records every deleted row in undo/redo transaction log.\n• Slower execution on large tables.\n• Can be rolled back using `ROLLBACK;` if not committed.\n• Does not deallocate table storage space or reset high-water mark.",
+    "topic": "SQL"
+  },
+  {
+    "question": "What is the difference between Star Schema and Snowflake Schema?",
+    "answer": "Difference between Star Schema and Snowflake Schema:\n\n1. Star Schema:\n• Center Fact table surrounded by de-normalized Dimension tables (resembles a Star).\n• Dimension tables are NOT normalized (contain redundant data to reduce joins).\n• Faster query execution performance with fewer table joins.\n• Simpler SQL queries for BI reporting.\n• Consumes more storage due to de-normalization.\n\n2. Snowflake Schema:\n• Dimension tables are normalized into sub-dimension lookup tables (resembles a Snowflake).\n• Eliminates data redundancy by splitting dimension hierarchies into normalized tables.\n• Saves database storage space.\n• Slower analytical query performance because BI queries require complex multi-level joins.\n• More complex maintenance and ETL mapping logic.",
+    "topic": "Data Warehouse"
+  },
+  {
+    "question": "How do you find the 2nd highest or Nth highest salary in SQL using multiple approaches?",
+    "answer": "Finding 2nd / Nth Highest Salary in SQL:\n\nApproach 1: Using DENSE_RANK() (Recommended & Standard)\n```sql\nSELECT employee_id, first_name, salary\nFROM (\n  SELECT employee_id, first_name, salary,\n         DENSE_RANK() OVER (ORDER BY salary DESC) as rnk\n  FROM employees\n)\nWHERE rnk = 2; -- Change 2 to N for Nth highest\n```\n\nApproach 2: Using Subquery with MAX()\n```sql\nSELECT MAX(salary) AS second_highest_salary\nFROM employees\nWHERE salary < (SELECT MAX(salary) FROM employees);\n```\n\nApproach 3: Using Correlated Subquery (Generic for Nth highest)\n```sql\nSELECT salary\nFROM employees e1\nWHERE 2 - 1 = (\n  SELECT COUNT(DISTINCT e2.salary)\n  FROM employees e2\n  WHERE e2.salary > e1.salary\n);\n```",
+    "topic": "SQL Queries"
+  },
+  {
+    "question": "How do you find and delete duplicate records in SQL without deleting all instances?",
+    "answer": "Finding and Deleting Duplicate Records in SQL:\n\n1. Finding Duplicates:\n```sql\nSELECT employee_id, COUNT(*)\nFROM employees\nGROUP BY employee_id\nHAVING COUNT(*) > 1;\n```\n\n2. Deleting Duplicates using ROWID (Oracle Standard):\n```sql\nDELETE FROM employees\nWHERE ROWID NOT IN (\n  SELECT MIN(ROWID)\n  FROM employees\n  GROUP BY employee_id\n);\n```\n\n3. Deleting Duplicates using ROW_NUMBER():\n```sql\nDELETE FROM employees\nWHERE employee_id IN (\n  SELECT employee_id\n  FROM (\n    SELECT employee_id,\n           ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY employee_id) as rn\n    FROM employees\n  )\n  WHERE rn > 1\n);\n```",
+    "topic": "SQL Queries"
+  },
+  {
+    "question": "How do you create an exact replica of a table structure without copying data in SQL?",
+    "answer": "Creating an Exact Table Replica without Data:\n\n```sql\nCREATE TABLE employees_replica AS\nSELECT * FROM employees\nWHERE 1 = 2; -- False condition ensures zero rows copied, only schema created\n```\n\nTo create table WITH data:\n```sql\nCREATE TABLE employees_backup AS\nSELECT * FROM employees;\n```",
+    "topic": "SQL Queries"
+  },
+  {
+    "question": "How do you display alternate / odd / even rows in SQL?",
+    "answer": "Displaying Alternate Rows (Odd / Even) in SQL:\n\n1. Odd Rows:\n```sql\nSELECT * FROM (\n  SELECT employees.*, ROWNUM AS rnum\n  FROM employees\n)\nWHERE MOD(rnum, 2) = 1;\n```\n\n2. Even Rows:\n```sql\nSELECT * FROM (\n  SELECT employees.*, ROWNUM AS rnum\n  FROM employees\n)\nWHERE MOD(rnum, 2) = 0;\n```",
+    "topic": "SQL Queries"
+  },
+  {
+    "question": "What are the core ETL Test Scenarios and Validations performed in an ETL Testing Process?",
+    "answer": "ETL Test Scenarios and Validations:\n\n1. Structure Validation:\n• Validate source and target table structures against STM (Source-to-Target Mapping).\n• Validate datatypes, length, and precision in source and target.\n• Validate column names and order in target system.\n\n2. Mapping Document Validation:\n• Validate mapping document has complete change log, datatypes, length, and transformation business rules.\n\n3. Constraint Validation:\n• Validate Primary Key, Foreign Key, Unique, Not Null, and Check constraints on target tables.\n• Check for referential integrity violations.\n\n4. Data Consistency & Quality Check:\n• Number check, date check, precision check, null check.\n• Ensure consistent date format across all tables.\n\n5. Null Validation:\n• Check columns designated as NOT NULL do not receive NULL values.\n\n6. Duplicate Validation:\n• Check duplicate records across primary key or composite keys in target table.\n\n7. Date Validation:\n• Validate From_Date <= To_Date.\n• Proper date format, no junk dates (0000-00-00) or missing dates.\n\n8. Full Data Validation using MINUS Query:\n• Perform Source MINUS Target and Target MINUS Source to ensure complete bidirectional data accuracy.",
+    "topic": "ETL Test Scenarios"
+  },
+  {
+    "question": "What are the tasks to be performed by an ETL Tester across Source, Transformation, and Load phases?",
+    "answer": "Tasks to be performed by an ETL Tester:\n\n1. Verify Tables in the Source System:\n• Count check\n• Reconcile records with source data\n• Data type check\n• Ensure no spam / corrupted data loaded\n• Remove / detect duplicate data\n• Check all keys are in place\n\n2. Apply Transformation Logic:\n• Data threshold validation check (e.g. age shouldn't be > 100)\n• Record count check before and after transformation logic applied\n• Data flow validation from staging area to intermediate tables\n• Surrogate key check\n\n3. Data Loading:\n• Record count check from intermediate table to target system\n• Ensure key field data is not missing or NULL\n• Check aggregate values and calculated measures are loaded properly in fact tables\n• Check dimensional modeling integrity (referential integrity between Facts and Dimensions)",
+    "topic": "ETL Testing"
+  },
+  {
+    "question": "If you find mismatch records during ETL testing, what is your approach?",
+    "answer": "Approach when mismatch records are found:\n1. Extract and isolate the mismatch records along with screenshots/log artifacts.\n2. Cross-verify the SQL query, STM (Source Target Mapping) document, and transformation rules.\n3. Check reject files / bad files / session logs in Informatica for transformation errors.\n4. Contact the on-site coordinator and dev team to discuss whether it is a data issue, mapping gap, or ETL bug.\n5. Log a defect in HP ALM / Jira with proper severity, steps to reproduce, source & target queries, and query output attachments.\n6. Follow up in stand-up call and defect review meeting until resolved, then retest upon deployment.",
+    "topic": "ETL Testing"
   },
   {
     "question": "What are your daily activities as an ETL Tester?",
@@ -145,11 +310,6 @@
     "topic": "ETL Testing"
   },
   {
-    "question": "What are the test cases and validation steps for SCD Type 2 (Initial Load and Incremental Load)?",
-    "answer": "SCD Type-2 (Slowly Changing Dimension Type 2) Validation:\nSCD Type 2 maintains full history by adding a new record with versioning/effective dates whenever a dimension attribute changes.\n\nGeneric fields generated by ETL:\n• Surrogate Key (SK)\n• Natural Key (ID)\n• ETL Effective Start Date (e.g. 01-Jan-20)\n• ETL Effective End Date (e.g. 31-Dec-2099 for active row)\n• Active Row Flag ('A' for active, 'H' for historical / 'Y'/'N')\n• Version Number (1, 2, 3...)\n• ETL Process Date\n\nValidation Test Cases:\n1. Initial Load:\n   - Verify job runs successfully.\n   - Surrogate Key is generated automatically, in sequential incremental numeric order.\n   - ETL Effective Start Date and ETL Process Date must be same (current batch date).\n   - ETL Effective End Date must be high future date (e.g., 31-Dec-2099 or 9999-12-31).\n   - Active Row Flag must be 'A' (Active).\n   - Version Number must be 1.\n\n2. Incremental / Delta Load (when a record changes, e.g. City changed from New York to Florida):\n   - For Old Record: Active Row Flag changes from 'A' to 'H' (Historical). Effective End Date updates to (New Batch Date - 1).\n   - For New Record: Inserted with new Surrogate Key (incremental). Version number increments to 2. Active Row Flag set to 'A'. Effective Start Date is new batch date. Effective End Date set to 31-Dec-2099.\n   - Unchanged records remain intact with Version 1 and Active flag 'A'.",
-    "topic": "SCD"
-  },
-  {
     "question": "What is the difference between Primary Key and Surrogate Key?",
     "answer": "Difference between Primary Key and Surrogate Key:\n\nPrimary Key:\n• Used for maintaining unique records in OLTP database.\n• Can be alphanumeric or numeric.\n• It is a business attribute / natural key from source.\n• It is actual table/business data.\n• Given by user / source system.\n\nSurrogate Key:\n• Used to maintain unique records in OLAP database / Data Warehouse.\n• Always a system-generated sequential numeric number.\n• It is a technical attribute created by ETL pipeline.\n• Not part of source business data.\n• Generated automatically by ETL/database sequence (e.g., in dimension tables for SCD tracking).",
     "topic": "Data Warehouse"
@@ -163,11 +323,6 @@
     "question": "What is a Foreign Key and how is it used in Data Warehouse / ETL?",
     "answer": "Foreign Key in ETL and Data Warehouse:\n• A column or set of columns in a table that refers to the Primary Key in another table.\n• Used to establish parent-child relationship and maintain referential integrity.\n• In Data Warehouse dimensional modeling:\n  - Fact table contains Foreign Keys pointing to the Surrogate Keys of Dimension tables.\n  - Dimension table contains Surrogate Key / Primary Key.\n• ETL Validation Check: Ensure no orphan records in Fact tables (every FK in Fact must match an existing SK in Dimension table).",
     "topic": "Data Warehouse"
-  },
-  {
-    "question": "If you find mismatch records during ETL testing, what is your approach?",
-    "answer": "Approach when mismatch records are found:\n1. Extract and isolate the mismatch records along with screenshots/log artifacts.\n2. Cross-verify the SQL query, STM (Source Target Mapping) document, and transformation rules.\n3. Check reject files / bad files / session logs in Informatica for transformation errors.\n4. Contact the on-site coordinator and dev team to discuss whether it is a data issue, mapping gap, or ETL bug.\n5. Log a defect in HP ALM / Jira with proper severity, steps to reproduce, source & target queries, and query output attachments.\n6. Follow up in stand-up call and defect review meeting until resolved, then retest upon deployment.",
-    "topic": "ETL Testing"
   },
   {
     "question": "What is ETL testing and what are common types of bugs in ETL?",
@@ -228,15 +383,5 @@
     "question": "What are the challenges faced during ETL testing?",
     "answer": "Challenges faced during ETL testing:\n• Data loss during the ETL process.\n• Incorrect, incomplete, or duplicate data coming from source systems.\n• DW system contains historical data, so the data volume is too large (millions/billions of records) and extremely complex to validate in the target system.\n• ETL testers are normally not provided with access to see job schedules in the ETL tool, and hardly have access to BI Reporting tools to see final layout of reports.\n• Tough to generate and build test cases as data volume is too high and complex.\n• ETL testers normally don’t have an idea of end-user report requirements and business flow of the information.\n• ETL testing involves various complex SQL queries and analytical functions for data validation.\n• Sometimes testers are not provided with up-to-date Source-to-Target Mapping (STM) documents or change logs.",
     "topic": "ETL Challenges"
-  },
-  {
-    "question": "What are the tasks to be performed by an ETL Tester across Source, Transformation, and Load phases?",
-    "answer": "Tasks to be performed by an ETL Tester:\n\n1. Verify Tables in the Source System:\n• Count check\n• Reconcile records with source data\n• Data type check\n• Ensure no spam / corrupted data loaded\n• Remove / detect duplicate data\n• Check all keys are in place\n\n2. Apply Transformation Logic:\n• Data threshold validation check (e.g. age shouldn't be > 100)\n• Record count check before and after transformation logic applied\n• Data flow validation from staging area to intermediate tables\n• Surrogate key check\n\n3. Data Loading:\n• Record count check from intermediate table to target system\n• Ensure key field data is not missing or NULL\n• Check aggregate values and calculated measures are loaded properly in fact tables\n• Check dimensional modeling integrity (referential integrity between Facts and Dimensions)",
-    "topic": "ETL Testing"
-  },
-  {
-    "question": "What are the core ETL Test Scenarios and Validations performed in an ETL Testing Process?",
-    "answer": "ETL Test Scenarios and Validations:\n\n1. Structure Validation:\n• Validate source and target table structures against STM (Source-to-Target Mapping).\n• Validate datatypes, length, and precision in source and target.\n• Validate column names and order in target system.\n\n2. Mapping Document Validation:\n• Validate mapping document has complete change log, datatypes, length, and transformation business rules.\n\n3. Constraint Validation:\n• Validate Primary Key, Foreign Key, Unique, Not Null, and Check constraints on target tables.\n• Check for referential integrity violations.\n\n4. Data Consistency & Quality Check:\n• Number check, date check, precision check, null check.\n• Ensure consistent date format across all tables.\n\n5. Null Validation:\n• Check columns designated as NOT NULL do not receive NULL values.\n\n6. Duplicate Validation:\n• Check duplicate records across primary key or composite keys in target table.\n\n7. Date Validation:\n• Validate From_Date <= To_Date.\n• Proper date format, no junk dates (0000-00-00) or missing dates.\n\n8. Full Data Validation using MINUS Query:\n• Perform Source MINUS Target and Target MINUS Source to ensure complete bidirectional data accuracy.",
-    "topic": "ETL Test Scenarios"
   }
 ]

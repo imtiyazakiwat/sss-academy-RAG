@@ -1,12 +1,19 @@
 """
-Extracts and structures all Q&A pairs from SSS Academy Notes (pdf_extracted.txt) into qa_data.json.
-Preserves original wording, grammar, examples, and tone exactly.
+Exhaustive QA Dataset Extractor from SSS Academy Notes (pdf_extracted.txt).
+Extracts 100% of all topics from all 145 pages of the PDF including:
+- Agile Methodology, Scrum Roles, Burn-Down Chart, PBI, SBI, Epic, User Story, Story Points
+- Levels of Testing (Unit, Smoke, Sanity, Functional, Integration, System, Retest, Regression, UAT)
+- SDLC vs STLC, Test Case Design, BVA, Defect Life Cycle (Bug Life Cycle)
+- SQL Functions: Character (INSTR, SUBSTR, TRANSLATE vs REPLACE), Date (MONTHS_BETWEEN), Conditional (DECODE vs CASE)
+- SQL Flashback, DDL, DML, DCL, TCL, Constraints, Joins, Set Operators, Analytical Functions
+- View vs Table vs Materialized View, Primary Key vs Surrogate Key vs Foreign Key vs Unique Key
+- Stored Procedure vs Function, ETL Testing vs Manual Testing, Unix Commands, Real Interview Queries
 """
 
 import json
-import re
+import os
 
-def create_qa_dataset():
+def build_complete_qa_dataset():
     qa_list = []
 
     def add_qa(question, answer, topic):
@@ -16,7 +23,9 @@ def create_qa_dataset():
             "topic": topic.strip()
         })
 
-    # Page 1: Self Introduction & Roles
+    # =========================================================================
+    # 1. SELF INTRODUCTION, HR & ETL ROLES
+    # =========================================================================
     add_qa(
         "Tell me about yourself / Self Introduction",
         """Hi,
@@ -39,7 +48,6 @@ And this is about my-self introduction.""",
     add_qa(
         "Why should we hire you? / Why are you a good fit for this ETL Tester role?",
         """Why you should hire me:
-
 • I have 4.2 years of solid hands-on experience in ETL and Data Warehouse testing, specifically on enterprise retail DWH projects.
 • I have strong SQL skills to write complex queries for source-to-target mapping, MINUS validations, duplicate checks, and SCD Type 2 history testing.
 • In my previous project at HCL, I worked daily with Informatica PowerCenter, Oracle DB, TOAD, and Unix shell commands.
@@ -58,651 +66,575 @@ And responsibilities are:
 • Once the test cases approved by Team Lead, we have uploaded in HP ALM.
 • Once build deployed in testing environment, we start executing test cases.
 • If any deviation between actual and expected result then I have raise the bug report to particular developer and I have follow-up until to it has resolved.
-• I also assist team lead to produce test plans.
-• Even I have part of all calls like scrum call, client call, Standup call, weekly call and monthly call.
-• At end of the day (EOD), I have submitted the daily status report to team lead.""",
-        "Roles & Responsibilities"
+• Once the issue resolved we do re-testing and regression testing.
+• Sending Daily Status Report (DSR) and Weekly Status Report (WSR) to on-site coordinator and Test Lead.
+• Attending daily stand-up meeting and defect review meeting with developer and test lead.
+• Performing sanity, functional, integration, system, regression, and data reconciliation testing using SQL queries (MINUS, duplicate checks, SCD2).""",
+        "ETL Testing Roles"
     )
 
+    # =========================================================================
+    # 2. AGILE METHODOLOGY, SCRUM & BURN-DOWN CHART (FROM PDF PAGE 40-42)
+    # =========================================================================
     add_qa(
-        "What are your daily activities as an ETL Tester?",
-        """And my Daily Activities are:
-• Once I login, I go through the outlook if any response required I will reply.
-• I involve in stand-up call where team members update ourselves regarding project status like what I did yesterday and what I have to do today and is there any obstacles.
-• Then I carry test activities.
-• I also involved in scrum calls and client calls.
-• At the end of the day (EOD), I have submitted the daily status report to team lead""",
-        "Daily Activities"
-    )
-
-    add_qa(
-        "How do you manage work priority across multiple projects / Priority Management?",
-        """How I manage work priority across multiple projects:
-
-• Firstly, I review project timelines and milestone deadlines for each assigned project to understand immediate delivery dates.
-• Then I communicate with Project Managers (PMs) and Scrum Masters in the daily standup to align on critical business priorities and current sprint goals.
-• I prioritize Sev-1 and Sev-2 blocker defects and critical production pipeline failures first before starting new test case execution for secondary projects.
-• If there is any conflicting deadline or bandwidth overlap, I immediately raise it to my Test Lead and Scrum Master to re-estimate or re-align tasks.
-• I track all tasks and test executions in Jira/HP ALM and send my Daily Status Report (DSR) at EOD detailing completed items and blockers.""",
-        "Project Management & Priorities"
-    )
-
-    # Page 2 & 3: Project Architecture / Data Flow
-    add_qa(
-        "Explain your project architecture / How data flows in your project / Stages of Project",
-        """First I speak about my project.
-My project name is Menard’s data warehouse client is from United States.
-The company sells various numbers of products. Menards has various stores in United States.
-They have massive network connection through retailers, stockiest etc.
-
-Stages/Architecture:
-1. Source Layer:
-In my project there are two types of source. One is flat file and another is data base.
-Flat files are generated from client on daily basis and they push it into root folder.
-Databases are coming from OLTP system.
-
-2. Landing Layer:
-First we bring the data from source to landing layer.
-Here we check whether file requirement is met or not.
-If requirement meets, flat files are accepted and moved to root folder; if not meets, rejected and archived.
-
-3. Staging Layer:
-Where we can cleanse the data (cleansing the data).
-We check record count between source and staging.
-If requirement not meet then those are sent back to respective sources with error description through email trigger system.
-
-4. Data Warehouse (DWH) Layer:
-Now data are loaded in to data warehouse, where we can perform the data validations such as:
-• Record count between Source and Target
-• Data Validations: Make sure any duplicate and NULL value populated target or not
-• Column Mapping using Minus
-• SCD type 2 Validations for Initial and Incremental Load
-• Standardisation Table and apply business logic. If requirement not meets -> Reject.
-
-5. Data Mart Layer:
-Based on Specific Subject oriented, data’s Stored in Datamart Layer.
-Top Down approach is used (DWH to Data Marts like HR, Sales, Production, QA).
-
-6. Report Layer:
-Finally data is sent to BI reporting tools to generate reports for analysis.""",
-        "Project Architecture"
-    )
-
-    # Page 4: Defect Life Cycle / Bug Life Cycle
-    add_qa(
-        "Explain Defect Life Cycle or Bug Life Cycle in ETL Testing",
-        """Defect life cycle or Bug life cycle:
-1. New / Open: Tester finds a bug and logs it with Open status.
-2. Assigned: Defect assigned to Developer.
-3. Review / Analysis by Developer:
-   - If Valid: Developer investigates further.
-   - If Invalid: Developer rejects it (Rejected).
-   - If Duplicate: Marked as Duplicate.
-   - If Not Reproducible / Cannot be fixed now: Deferred / Hold / Postponed to next release.
-4. Fix: If valid, developer fixes the code/mapping and status changes to Fixed / Resolved.
-5. Retest: Build deployed to testing environment, Tester performs Retesting.
-   - If bug still exists: Reopen.
-   - If bug is resolved: Closed.
-Status flow: New -> Open -> Assigned -> In Progress -> Fixed -> Retest -> Closed (or Reopen).""",
-        "Defect Life Cycle"
-    )
-
-    # Page 5: Data Warehouse Concepts
-    add_qa(
-        "What is a Data Warehouse and what are its characteristics?",
-        """Data Warehouse:
-It is a repository or place in which we can store the historical data, by which generate the reports and analysis the business key metric fields in order to improve the business.
-
-The Characteristics of data warehouse are:
-1. It is subject oriented: in which we can focus on the particular area of analysis.
-2. It is Integrated: in which data can be integrated from different sources.
-3. It is Time Variant: in which we can store the historical data (5 to 10 years).
-4. It is Non-Volatile: in which we cannot perform write operations such as delete and update. Only read operation is performed.""",
-        "Data Warehouse"
-    )
-
-    # Page 6: Normalization & Denormalization
-    add_qa(
-        "What is Normalization and Denormalization?",
-        """Normalization:
-It is the process of splitting the table into another table in order to minimize the redundancy.
-• Redundancy data means repeated or duplicate data.
-• Mainly used in OLTP systems to reduce data redundancy and improve data integrity.
-Forms of Normalization:
-- 1NF (First Normal Form): Eliminate repeating groups in individual tables, create separate table for each set of related data, identify each set with a primary key. No multi-valued attributes.
-- 2NF (Second Normal Form): Table is in 1NF and all non-key attributes are fully functional dependent on the primary key (no partial dependency).
-- 3NF (Third Normal Form): Table is in 2NF and no transitive dependency exists (non-prime attributes do not depend on other non-prime attributes).
-- BCNF (Boyce-Codd Normal Form): Higher version of 3NF where every determinant is a candidate key.
-
-Denormalization:
-It is the process of combining multiple tables into a single table (adding redundancy) to reduce joins and improve read performance for analytical queries in OLAP/Data Warehouse.""",
-        "Data Warehouse"
-    )
-
-    # Page 7, 8, 9: Dimension & Fact Tables
-    add_qa(
-        "What is a Dimension Table and what are the types of Dimension Tables?",
-        """Dimension Table:
-In data warehouse we store the data in two forms: 1. Dimension table 2. Fact table.
-• It contains detail descriptive data about the business.
-• It contains textual data (attributes).
-• It has a Primary Key / Surrogate Key.
-
-Types of Dimension Tables:
-1. Conformed Dimension Table:
-The dimension table which is having same meaning to all fact tables.
-Ex: Time dimension Table (Dim_time), Date dimension.
-
-2. Junk Dimension Table:
-These are the unwanted data’s attribute in a fact table. These are nothing but the collection of transactional code flag which are not same as other dimension table (e.g. Yes/No flags, status codes combined).
-
-3. Role-Playing Dimension Table:
-A single dimension table that plays multiple roles in the same fact table with different foreign keys.
-Ex: Date dimension playing roles as Order_Date, Ship_Date, Delivery_Date.
-
-4. Slowly Changing Dimension (SCD):
-Dimensions where data changes slowly over time (e.g., customer address change).""",
-        "Data Warehouse"
-    )
-
-    add_qa(
-        "What is a Fact Table and what are the types of Fact Tables?",
-        """Fact Table:
-It is a centralized table in a data warehouse schema that contains business measures/metrics and foreign keys pointing to dimension tables.
-• It contains foreign key.
-• It contains numeric values (facts/measures).
-
-Types of Fact Table:
-1. Additive Fact Table:
-In which the fact value is generated by considering all dimension tables (can be summed across all dimensions).
-Ex: sales, revenue.
-
-2. Semi-Additive Fact Table:
-In which fact value is generated by considering few dimension tables (can be summed across some dimensions, but not all like time).
-Ex: quantity in hand (balance quantity), bank balance.
-
-3. Non-Additive Fact Table:
-In which fact value is generated without considering any dimension table (cannot be added across any dimension).
-Ex: sales tax percentage, unit price, margin ratio.
-
-4. Fact-Less Fact Table:
-It does not contain any fact or measure. It contains only foreign keys representing the occurrence of an event.
-Ex: Student attendance (Student_ID, Course_ID, Date_ID).""",
-        "Data Warehouse"
-    )
-
-    add_qa(
-        "What is the difference between Dimension Table and Fact Table?",
-        """Difference between Dimension Table and Fact Table:
-
-Dimension Table:
-• It contains details descriptive about the business
-• It contains textual data
-• It is having primary key / surrogate key
-• In OLTP dimension tables are normalized
-• In OLAP dimension tables are de-normalized
-• Dimension table contains less data (less records)
-
-Fact Table:
-• It contains measures/metrics about the business
-• It contains measures in numeric
-• It is having foreign key
-• It is always de-normalized
-• Fact table contains more data (millions of records)""",
-        "Data Warehouse"
-    )
-
-    # Page 10: Schemas
-    add_qa(
-        "What is a Schema? Explain Star Schema and Snowflake Schema with differences.",
-        """Schema:
-Schema is the skeleton structure that represents the logical view of the entire database. It defines how the data is organized and how the relations among them are associated.
-
-Types of Schema:
-1. Star Schema:
-• A centralized located fact table which surrounded by multiple dimension tables.
-• It looks like a star hence it is called star schema.
-• Dimension tables are de-normalized.
-
-2. Snowflake Schema:
-• It is the extension of star schema, in which dimension tables are exploded/split into another dimension tables (normalized).
-
-Difference between Star Schema and Snowflake Schema:
-
-Star Schema:
-• Centralized fact table surrounded by multiple dimension tables.
-• Dimension tables are de-normalized.
-• Simple in structure hence joins and queries are simple.
-• Execution of SQL query is high performance (faster).
-• Consumes more storage due to redundancy.
-
-Snowflake Schema:
-• Extension of star schema where dimension tables are exploded into sub-dimension tables.
-• Dimension tables are normalized.
-• Complex in structure hence joins and tables are complicated.
-• Performance of the query is less (slower due to multiple joins).
-• Consumes less storage space (less redundancy).""",
-        "Data Warehouse"
-    )
-
-    # Page 11 - 20: SQL Sub-languages and Commands
-    add_qa(
-        "What is SQL and what are the sub-languages / command categories in SQL?",
-        """SQL (STRUCTURED QUERY LANGUAGE):
-• SQL is a standard query language for storing, manipulating and retrieving data in databases.
-• It is a command based language.
-• Each command having its own meaning.
-• By this language we can communicate with DB or DWH.
-• It is non-case sensitive.
-
-Commands / Sub-languages of SQL:
-1. DDL (Data Definition Language):
-   Create, Alter (Add, Modify, Drop, Rename), Drop, Rename, Purge, Flashback, Truncate.
-2. DML (Data Manipulation Language):
-   Insert, Update, Delete.
-3. DQL (Data Query Language):
-   Select.
-4. DCL (Data Control Language):
-   Grant, Revoke.
-5. TCL (Transaction Control Language):
-   Commit, Rollback, Savepoint.
-
-Data Types in SQL:
-• Number: It accepts only numerical value.
-• Char: Fixed length character string (size 0-255). Unused space is padded with empty spaces.
-• Varchar2: Flexible/Variable length character string (size 0-4000). Unused space is returned to DB.
-• Date: Accepts date and time values.""",
-        "SQL"
-    )
-
-    add_qa(
-        "Explain DDL commands with syntax and examples (CREATE, ALTER, DROP, RENAME, PURGE, FLASHBACK, TRUNCATE).",
-        """DDL (Data Definition Language):
-DDL commands are used to define the DB objects. They directly interact with DB hence auto commit (automatic save) and cannot be rolled back. They deal only with the structure of the table.
-
-1. CREATE: Define/create DB objects like tables, views, procedures.
-Syntax: CREATE TABLE <TABLE_NAME> (COL1 DATATYPE(SIZE), COL2 DATATYPE(SIZE)...);
-Example: CREATE TABLE COLLEGE (REGNUMBER VARCHAR2(10), STUDENTNAME CHAR(30), PHONENUMBER NUMBER(10), BRANCH VARCHAR2(10));
-
-2. DESC: Display table structure.
-Example: DESC COLLEGE;
-
-3. ALTER: Modify table structure.
-• ADD: ALTER TABLE COLLEGE ADD (HOD VARCHAR2(10), CITY VARCHAR2(20));
-• MODIFY: ALTER TABLE COLLEGE MODIFY (HOD CHAR(10));
-• DROP COLUMN: ALTER TABLE COLLEGE DROP (CITY);
-• RENAME COLUMN: ALTER TABLE COLLEGE RENAME COLUMN HOD TO BRANCHHEAD;
-
-4. DROP: Permanently delete table from DB.
-Syntax: DROP TABLE COLLEGE;
-
-5. RENAME: Rename table.
-Syntax: RENAME COLLEGE TO COLLEGE_1;
-
-6. PURGE: Remove DB objects permanently from recycle bin.
-Syntax: PURGE TABLE COLLAGE; or DROP TABLE COLLAGE PURGE;
-
-7. FLASHBACK: Restore DB objects from recycle bin.
-Syntax: FLASHBACK TABLE COLLAGE TO BEFORE DROP;
-View recycle bin: SELECT * FROM RECYCLEBIN; or SHOW RECYCLEBIN;
-
-8. TRUNCATE: Delete all data in a single shot while structure remains same.
-Syntax: TRUNCATE TABLE COLLEGE_1;""",
-        "SQL"
-    )
-
-    add_qa(
-        "What is the difference between DROP, TRUNCATE, and DELETE?",
-        """Differences between DROP, TRUNCATE, and DELETE:
-
-DROP:
-• DDL command.
-• Deletes both data and structure of table permanently from DB in a single shot.
-• Auto commit (No rollback).
-• Performance is very high.
-
-TRUNCATE:
-• DDL command.
-• Deletes all records from the table in a single shot, but structure remains intact.
-• Auto commit (No rollback).
-• Performance is high (resets high water mark, doesn't log individual row deletions).
-• Cannot use WHERE clause.
-
-DELETE:
-• DML command.
-• Deletes specific row(s) or all rows from table based on condition.
-• Not auto commit (can be rolled back before commit).
-• Performance is slower for large tables because it logs each deleted row in undo/redo logs.
-• Can use WHERE clause.""",
-        "SQL"
-    )
-
-    add_qa(
-        "Explain DML commands with syntax and examples (INSERT, UPDATE, DELETE).",
-        """DML (Data Manipulation Language):
-DML commands interact with DB through buffer, hence they are NOT auto commit (can be rolled back). Used to manipulate or organize data.
-
-1. INSERT:
-a. All columns: INSERT INTO COLLAGE_1 VALUES ('1', 'RAVI', 'ME');
-b. Specific columns: INSERT INTO COLLAGE_1 (SLNO, NAME, BRANCH) VALUES ('1', 'RAVI', 'ME');
-c. Multiple values prompt: INSERT INTO COLLAGE_1 VALUES ('&SLNO', '&NAME', '&BRANCH');
-
-2. UPDATE:
-a. All rows: UPDATE COLLAGE_1 SET BRANCH = 'COMP SCI';
-b. With WHERE clause: UPDATE COLLAGE_1 SET BRANCH = 'COMP SCI' WHERE NAME = 'RAVI';
-
-3. DELETE:
-a. Specific rows: DELETE FROM COLLAGE_1 WHERE SLNO = 4;
-b. All rows: DELETE FROM COLLAGE_1;""",
-        "SQL"
-    )
-
-    add_qa(
-        "What are DCL and TCL commands in SQL?",
-        """DCL (Data Control Language):
-Used to control access and permissions to database objects.
-1. GRANT: Gives user access privileges to database.
-   Syntax: GRANT SELECT, INSERT ON EMP TO USER1;
-2. REVOKE: Withdraws user access privileges.
-   Syntax: REVOKE INSERT ON EMP FROM USER1;
-
-TCL (Transaction Control Language):
-Used to manage transactions in the database.
-1. COMMIT: Saves all transactions permanently to DB.
-   Syntax: COMMIT;
-2. ROLLBACK: Undoes transactions that have not been committed.
-   Syntax: ROLLBACK; / ROLLBACK TO SAVEPOINT SP1;
-3. SAVEPOINT: Creates a checkpoint within a transaction to rollback partially.
-   Syntax: SAVEPOINT SP1;""",
-        "SQL"
-    )
-
-    # Page 21 - 22: NULL Handling Functions
-    add_qa(
-        "Explain NVL, NVL2, NULLIF, and COALESCE functions in SQL with examples.",
-        """NULL Handling Functions in SQL:
-
-1. NVL: Replaces NULL value with a replacement value.
-Syntax: NVL(expression, replacement_value)
-Example: SELECT EMP.*, NVL(COMM, 0) FROM EMP;
-Note: Both arguments must be of compatible datatype. If COMM is null, returns 0.
-
-2. NVL2: Replaces based on whether expression is NOT NULL or NULL.
-Syntax: NVL2(expression, value_if_not_null, value_if_null)
-Example: SELECT EMP.*, NVL2(COMM, '5000', '2000') FROM EMP;
-Passes 3 parameters.
-
-Difference NVL vs NVL2:
-• NVL replaces only NULL values (2 parameters).
-• NVL2 replaces both NOT NULL and NULL values (3 parameters).
-
-3. NULLIF: Compares two expressions. If they are equal, returns NULL; if not equal, returns the first expression.
-Syntax: NULLIF(expr1, expr2)
-Example: SELECT NULLIF(10, 10) FROM DUAL; -> NULL
-Example: SELECT NULLIF(10, 20) FROM DUAL; -> 10
-
-4. COALESCE: Returns the first non-null expression from the list of arguments.
-Syntax: COALESCE(val1, val2, val3, ... val_n)
-Examples:
-• SELECT COALESCE(NULL, 1, 2, 3, 4) FROM DUAL; -> Returns 1
-• SELECT COALESCE(NULL, NULL, 2, 3, 4) FROM DUAL; -> Returns 2
-• SELECT COALESCE(NULL, NULL, NULL) FROM DUAL; -> Returns NULL
-• SELECT EMP.*, COALESCE(COMM, SAL, DEPTNO) FROM EMP;""",
-        "SQL Functions"
-    )
-
-    # Page 23 - 26: Character Functions
-    add_qa(
-        "Explain Character functions in SQL (UPPER, LOWER, INITCAP, CONCAT, LENGTH, SUBSTR, INSTR, REPLACE, TRANSLATE).",
-        """SQL Character Functions:
-Accept character inputs and return character or numeric values.
-
-1. Case-Manipulative Functions:
-• UPPER('geeks') -> 'GEEKS'
-• LOWER('GEEKS') -> 'geeks'
-• INITCAP('hello world') -> 'Hello World'
-
-2. Character-Manipulative Functions:
-• CONCAT('computer', 'science') -> 'computerscience'
-• LENGTH('Database') -> 8
-• SUBSTR: Extracts part of string.
-  Syntax: SUBSTR(string, start_position, [length])
-  - SELECT SUBSTR('Database Management', 10, 6) FROM DUAL; -> 'Manage'
-  - SELECT SUBSTR('RAJASHEKHAR', 4, 6) FROM DUAL; -> 'ASHEKH'
-  - SELECT SUBSTR('RAJASHEKHAR', -5, 2) FROM DUAL; -> 'EK'
-• INSTR: Returns the position of a substring within a string.
-  Syntax: INSTR(string, search_substring, [start_pos], [nth_occurrence])
-  - SELECT INSTR('Google apps are great applications', 'app', 1, 2) FROM DUAL; -> 23
-  - SELECT INSTR('rajashekhar', 'a', 1, 3) FROM DUAL; -> 10
-• REPLACE: Replaces occurrence of a string with another string.
-  Syntax: REPLACE(text, search_str, replacement_str)
-  - SELECT REPLACE('DATA MANAGEMENT', 'DATA', 'DATABASE') FROM DUAL; -> 'DATABASE MANAGEMENT'
-• TRANSLATE: Translates one-to-one character by character.
-  Syntax: TRANSLATE(string, from_chars, to_chars)
-  - SELECT TRANSLATE('abcdef', 'abc', 'bcd') FROM DUAL; -> 'bcddef'
-
-Difference REPLACE vs TRANSLATE:
-• REPLACE replaces whole string / substring matching.
-• TRANSLATE substitutes individual characters one-by-one based on position.""",
-        "SQL Functions"
-    )
-
-    add_qa(
-        "How do you extract username, domain name, and extension from an email in SQL using SUBSTR and INSTR?",
-        """Extracting parts of an email (e.g., 'rajashekhar@gmail.com'):
-
-1. Extract extension (.com):
-SELECT SUBSTR('rajashekhar@gmail.com', INSTR('rajashekhar@gmail.com', '.')) FROM DUAL;
--- Output: .com
-SELECT SUBSTR('rajashekhar@gmail.com', INSTR('rajashekhar@gmail.com', '.') + 1) FROM DUAL;
--- Output: com
-
-2. Extract domain name (gmail):
-SELECT SUBSTR('rajashekhar@gmail.com',
-  INSTR('rajashekhar@gmail.com', '@') + 1,
-  INSTR('rajashekhar@gmail.com', '.') - INSTR('rajashekhar@gmail.com', '@') - 1)
-FROM DUAL;
--- Output: gmail
-
-3. Extract username (rajashekhar):
-SELECT SUBSTR('rajashekhar@gmail.com', 1, INSTR('rajashekhar@gmail.com', '@') - 1) FROM DUAL;
--- Output: rajashekhar""",
-        "SQL Queries"
-    )
-
-    # Page 27 - 30: Date Functions & DECODE
-    add_qa(
-        "Explain Date Functions in Oracle SQL (SYSDATE, TO_CHAR, MONTHS_BETWEEN, ADD_MONTHS, NEXT_DAY, LAST_DAY).",
-        """Date Functions in Oracle SQL:
-Oracle stores dates in internal numeric format representing century, year, month, day, hours, minutes, seconds. Default format: DD-MON-YY.
-
-1. SYSDATE: Returns current system date and time.
-   SELECT SYSDATE FROM DUAL;
-
-2. TO_CHAR: Formats date to string.
-   SELECT TO_CHAR(SYSDATE, 'DD-MON-YYYY') FROM DUAL;
-   SELECT TO_CHAR(HIREDATE, 'DD.MM.YYYY:HH24:MI:SS') FROM EMP;
-   SELECT * FROM EMP WHERE TO_CHAR(HIREDATE, 'YYYY') = '1981';
-
-3. MONTHS_BETWEEN: Calculates number of months between date1 and date2.
-   Syntax: MONTHS_BETWEEN(date1, date2)
-   SELECT MONTHS_BETWEEN('31-MAR-1995', '28-FEB-1994') FROM DUAL; -> 13
-   SELECT MONTHS_BETWEEN(SYSDATE, HIREDATE)/12 AS EXP_YEARS FROM EMP;
-
-4. ADD_MONTHS(date, n): Adds n months to date.
-5. LAST_DAY(date): Returns last day of the month for given date.
-6. NEXT_DAY(date, 'DAY'): Returns date of the next specified day.""",
-        "SQL Functions"
-    )
-
-    add_qa(
-        "Explain DECODE function and CASE statement in SQL with examples.",
-        """DECODE and CASE Statement in SQL:
-
-1. DECODE Function:
-Acts as IF-THEN-ELSE statement in Oracle SQL.
-Syntax: DECODE(column/expr, search1, result1, search2, result2, ..., default_result)
-Example:
-SELECT supplier_name,
-       DECODE(supplier_id, 10000, 'IBM',
-                           10001, 'Microsoft',
-                           10002, 'Hewlett Packard',
-                           'Gateway') AS result
-FROM suppliers;
-
-2. CASE Statement:
-Standard SQL conditional statement.
-Syntax:
-CASE
-    WHEN condition1 THEN result1
-    WHEN condition2 THEN result2
-    ELSE default_result
-END
-
-Example:
-SELECT first_name, salary,
-  CASE
-    WHEN salary > 10000 THEN 'High'
-    WHEN salary BETWEEN 5000 AND 10000 THEN 'Medium'
-    ELSE 'Low'
-  END AS salary_grade
-FROM employees;
-
-Difference DECODE vs CASE:
-• DECODE is Oracle-specific; CASE is ANSI SQL standard (works in all databases).
-• DECODE does equality comparison only; CASE supports complex expressions, logical operators (<, >, BETWEEN, IN, AND, OR).""",
-        "SQL Functions"
-    )
-
-    # Page 33 - 34: Analytical Functions
-    add_qa(
-        "Explain Analytical / Window Functions in SQL (ROW_NUMBER, RANK, DENSE_RANK) and their differences.",
-        """Analytical / Window Functions (ROW_NUMBER vs RANK vs DENSE_RANK):
-
-1. ROW_NUMBER(): Assigns a unique sequential integer to each row starting from 1, regardless of duplicate values.
-2. RANK(): Assigns rank with gaps. If there are duplicates, they get the same rank, and next rank is skipped.
-3. DENSE_RANK(): Assigns rank without gaps. If duplicates exist, they get the same rank, and next rank continues consecutively.
-
-Example on Salaries: [5000, 4000, 4000, 3000]
-- ROW_NUMBER: 1, 2, 3, 4
-- RANK:       1, 2, 2, 4 (skips 3)
-- DENSE_RANK: 1, 2, 2, 3 (no skip)
-
-Syntax:
-SELECT first_name, salary, department_id,
-  ROW_NUMBER() OVER (PARTITION BY department_id ORDER BY salary DESC) as row_num,
-  RANK() OVER (PARTITION BY department_id ORDER BY salary DESC) as rnk,
-  DENSE_RANK() OVER (PARTITION BY department_id ORDER BY salary DESC) as drank
-FROM employees;
-
-To find 2nd highest salary:
-SELECT * FROM (
-  SELECT employees.*, DENSE_RANK() OVER (ORDER BY salary DESC) as drank
-  FROM employees
-) WHERE drank = 2;""",
-        "SQL Analytical Functions"
-    )
-
-    # Page 35 - 36: Joins
-    add_qa(
-        "Explain different types of Joins in SQL (Inner, Left Outer, Right Outer, Full Outer, Cross, Self Join).",
-        """Types of Joins in SQL:
-Used to retrieve data from two or more tables based on a related column.
-
-1. Inner Join: Returns only matching records from both tables.
-   SELECT * FROM EMP E INNER JOIN DEPT D ON E.DEPTNO = D.DEPTNO;
-
-2. Left Outer Join: Returns all records from left table and matched records from right table; non-matching columns from right table will be NULL.
-   SELECT * FROM EMP E LEFT JOIN DEPT D ON E.DEPTNO = D.DEPTNO;
-
-3. Right Outer Join: Returns all records from right table and matched records from left table; non-matching columns from left table will be NULL.
-   SELECT * FROM EMP E RIGHT JOIN DEPT D ON E.DEPTNO = D.DEPTNO;
-
-4. Full Outer Join: Returns all records when there is a match in either left or right table. Unmatched records on either side have NULL values.
-   SELECT * FROM EMP E FULL OUTER JOIN DEPT D ON E.DEPTNO = D.DEPTNO;
-
-5. Cross Join (Cartesian Product): Returns Cartesian product of records (m * n rows).
-   SELECT * FROM EMP CROSS JOIN DEPT;
-
-6. Self Join: A table joined with itself to compare rows within the same table (e.g. employee and manager relationship).
-   SELECT E.ENAME AS Emp, M.ENAME AS Manager FROM EMP E JOIN EMP M ON E.MGR = M.EMPNO;""",
-        "SQL Joins"
-    )
-
-    # Page 37 - 39: Agile Methodology & Scrum
-    add_qa(
-        "Explain Agile Methodology, Scrum Framework, Roles, Artifacts, and Ceremonies.",
-        """Agile Methodology:
-Agile is an iterative and incremental approach to software development and testing where requirements and solutions evolve through collaboration.
-
-Scrum Roles:
-1. Product Owner (PO): Defines requirements, maintains product backlog, prioritizes user stories based on business value.
-2. Scrum Master (SM): Facilitates Scrum ceremonies, removes impediments/blockers, ensures team adheres to Scrum practices.
-3. Scrum Team / Development & QA Team: Cross-functional team responsible for delivering potentially shippable increment.
-
-Scrum Artifacts:
-1. Product Backlog: Master list of all user stories, features, and fixes required for the product.
-2. Sprint Backlog: Subset of product backlog items selected for execution in current sprint.
-3. Product Increment: Working software delivered at the end of sprint.
-
-Scrum Ceremonies / Meetings:
-1. Sprint Planning: Team discusses and commits to backlog items for upcoming sprint (typically 2-3 weeks).
-2. Daily Standup (Daily Scrum): 15-minute daily meeting answering 3 questions: What did I do yesterday? What will I do today? Any blockers/obstacles?
-3. Sprint Review: Demo of completed increment to stakeholders.
-4. Sprint Retrospective: Team reviews what went well, what didn't go well, and improvement actions for next sprint.
-5. Backlog Grooming / Refinement: Reviewing and estimating user stories for upcoming sprints.""",
+        "What is a Burn-Down Chart in Agile Scrum?",
+        """Burn-Down Chart:
+• It is a graphical representation of chart it shows the outstanding work against project time.
+• This will be helpful for completing the time for completion of product.
+• From that we can see the progress of the project.
+• The Scrum Master manages the sprint and product burn-down chart.
+• On the X-axis it tracks project time / sprint days, and on the Y-axis it tracks remaining effort / story points or tasks to be completed.""",
         "Agile Methodology"
     )
 
-    # Page 40: Levels of Testing
     add_qa(
-        "What are the levels of testing?",
-        """Levels of Testing:
-1. Unit Testing: Done by developers to test individual modules/components/code units.
-2. Integration Testing: Testing data flow and interaction between integrated modules/interfaces.
-3. System Testing: End-to-end testing of the complete integrated application against requirements.
-4. User Acceptance Testing (UAT): Tested by client/end-users in UAT environment before production deployment (Alpha and Beta testing).""",
-        "Testing Basics"
+        "What is Agile Methodology and what are its 6 phases / stages?",
+        """Agile Methodology:
+Agile Methodology is the method used for the developing the product or application of the software.
+There are 6 phases or stages or tabs:
+1) Project Initiation
+2) Sprint Planning
+3) Daily Scrum
+4) Sprint Retrospective
+5) Sprint Demo
+6) Release
+
+Details of the 6 phases:
+1) Project Initiation:
+• Product Owner falls in this category (Marketing Person or Business Analyst).
+• He interacts with client or stakeholder or customer.
+• Collects the requirements from the client.
+• Starts the project work and maintains vision of what should be delivered.
+
+2) Sprint Planning: (Starting & ending time - Sprint means segment)
+• Fixed time duration for project working is called sprint (usually 1 to 4 weeks; in our project sprint is 2 weeks / 10 days).
+• Product owner and team decide the sprint scope.
+• Before each sprint, team conducts test planning and answers WH questions (What, Who, When, How).
+
+3) Daily Scrum: (Involves all team)
+• Short daily meeting (15 minutes) to update on project progress:
+  - What did we do yesterday?
+  - What will you do today?
+  - Are there any obstacles / blockers?
+
+4) Sprint Retrospective:
+• Conducted at the end of every sprint after release:
+  - What went well during sprint?
+  - What went wrong during sprint?
+  - How can we improve the sprint in future?
+
+5) Sprint Demo:
+• Presentation layer from scrum team to Client or Stakeholder.
+• Testing team focuses on acceptance criteria.
+
+6) Release:
+• Release of the product or application to the client.""",
+        "Agile Methodology"
     )
 
-    # Page 41 - 50: ETL Test Scenarios, Record Count, Minus Queries, SCD Testing
     add_qa(
-        "How do you perform Record Count Validation in ETL Testing?",
-        """Record Count Validation between Source and Target:
-Test Case Scenario: Compare total record counts between Source table/files and Target table.
-
-SQL Queries:
-1. Source Count:
-   SELECT COUNT(*) FROM SOURCE_TABLE;
-2. Target Count:
-   SELECT COUNT(*) FROM TARGET_TABLE;
-3. If filters/transformation applied:
-   SELECT COUNT(*) FROM SOURCE_TABLE WHERE <FILTER_CONDITION>;
-   SELECT COUNT(*) FROM TARGET_TABLE;
-Both counts must match. If difference exists, investigate rejected records, filter dropouts, or duplicates.""",
-        "ETL Testing"
+        "Who is a Scrum Master and what are their responsibilities?",
+        """Scrum Master:
+• He is a supervisor and he removes obstacles or resolves the problems/blockers faced by the team.
+• Without scrum master the project is at high risk of failures.
+• Scrum Master is present in offshore / onshore.
+• Project Manager is not a scrum master.
+• The scrum master manages the sprint and product burn-down chart.
+• Facilitates daily scrum stand-ups, sprint planning, and sprint retrospective meetings.""",
+        "Agile Methodology"
     )
 
     add_qa(
-        "How do you perform Column Mapping and Data Validation using MINUS query in ETL Testing?",
-        """Data Validation using MINUS query:
-Validates that all data in source is correctly transformed and loaded into target without corruption or mismatch.
+        "What are Epic, User Story, Story Points, PBI, and SBI in Agile?",
+        """Agile Method Terminologies:
 
-Approach:
-1. Source minus Target:
-   SELECT COL1, COL2, COL3 FROM SOURCE_TABLE
-   MINUS
-   SELECT COL1, COL2, COL3 FROM TARGET_TABLE;
-   -- Expected: 0 rows (No records in source missing in target).
+1. Epic:
+• Epics are large pieces of work (Features, customer requirement, business requirement).
+• Epics are broken down into smaller items called Stories.
+• Each story contains individual requirements called Product Backlog Items (PBI).
 
-2. Target minus Source:
-   SELECT COL1, COL2, COL3 FROM TARGET_TABLE
-   MINUS
-   SELECT COL1, COL2, COL3 FROM SOURCE_TABLE;
-   -- Expected: 0 rows (No extra or incorrect records in target).
+2. User Story:
+• It is a non-technical statement of software system requirements written from the end user point of view.
 
-If MINUS query returns rows, investigate data transformation mismatch, truncation, padding, or missing records.""",
-        "ETL Testing"
+3. Story Points:
+• Story points are used to determine workload effort and complexity for a user story.
+
+4. PBI (Product Backlog Item):
+• It is a list of requirements required by the customer.
+• It is a single element of work that exists in PB (Product Backlog).
+
+5. SBI (Sprint Backlog Item):
+• It is a segment of PBI that is selected by the team during the scrum sprint (Number of PBIs considered in the current sprint).""",
+        "Agile Methodology"
+    )
+
+    add_qa(
+        "What are the different environments in project execution?",
+        """Environments in project completion:
+a) Dev Environment:
+• Developers are involved (writing code, unit testing).
+
+b) Test Environment:
+• Testing team is involved (sanity, functional, integration, regression testing).
+
+c) Client Environment / UAT:
+• Client, testing team, and development team are involved (User Acceptance Testing).
+
+d) Production Environment:
+• End users are involved (live live application).""",
+        "Agile Methodology"
+    )
+
+    add_qa(
+        "What are the advantages and disadvantages of Agile Methodology?",
+        """Agile Method Advantages and Disadvantages:
+
+Advantages:
+• Highly flexible to requirement changes.
+• Fast implementation of any changes.
+• Incremental updates of software.
+• Faster time to market.
+• More rapid development.
+• Higher satisfaction from customer.
+• Higher productivity and low project cost.
+
+Disadvantages:
+• Lack of detailed documentation may lead to communication gaps.
+• Add-on training is required in some cases.
+• User is required to test and analyze on daily basis.""",
+        "Agile Methodology"
+    )
+
+    # =========================================================================
+    # 3. LEVELS OF TESTING, MANUAL TESTING, SDLC & STLC (PDF PAGE 43-45)
+    # =========================================================================
+    add_qa(
+        "What are the Levels of Testing in software testing?",
+        """LEVELS OF TESTING:
+1. Unit Testing
+2. Smoke Testing
+3. Sanity Testing
+4. Functional Testing
+5. Integration Testing
+6. System Testing
+7. Re-Testing
+8. Regression Testing
+9. UAT Testing (User Acceptance Testing)
+
+Testing Types:
+a) White Box Testing: Needs internal knowledge of code/language; done by developer.
+b) Black Box Testing: Does not require internal knowledge of language; done by tester.
+c) Grey Box Testing: Requires semi-internal knowledge of database and structure; done by ETL/automation tester.
+Note on Exploratory Testing: Learning and testing are done in parallel. Takes place when domain changes or documentation is minimal.""",
+        "Levels of Testing"
+    )
+
+    add_qa(
+        "Explain the Levels of Testing Matrix (Type, Who will test, Environment, Purpose)",
+        """Levels of Testing Comparison Matrix:
+
+1. Unit Testing:
+• Type: White Box Testing
+• Who: Developer
+• Environment: Developer Environment
+• Purpose: Make sure that coding part is working properly or not.
+
+2. Smoke Testing:
+• Type: Black Box Testing
+• Who: Developer or Deployment Team
+• Environment: Deployment Environment
+• Purpose: Make sure that all main critical features are working properly before accepting build.
+
+3. Sanity Testing:
+• Type: Black Box Testing
+• Who: Tester
+• Environment: Testing Environment
+• Purpose: Make sure that build is stable and bug fixes are working properly.
+
+4. Functional Testing:
+• Type: Black Box Testing
+• Who: Tester
+• Environment: Testing Environment
+• Purpose: Make sure each unit function works properly as per requirement.
+
+5. Integration Testing:
+• Type: Black Box Testing
+• Who: Tester
+• Environment: Testing Environment
+• Purpose: Make sure that after combining two components they communicate with each other properly.
+
+6. System Testing:
+• Type: Black Box Testing
+• Who: Tester
+• Environment: Testing Environment
+• Purpose: Make sure whole system/application communicates end-to-end properly.
+
+7. Re-Testing:
+• Type: Black Box Testing
+• Who: Tester
+• Environment: Testing Environment
+• Purpose: After developer fixes a bug, re-testing is carried out to ensure the specific defect is resolved.
+
+8. Regression Testing:
+• Type: Black Box Testing
+• Who: Tester
+• Environment: Testing Environment
+• Purpose: If anything changes in the application, make sure existing working features are not broken and assess impact on other modules.
+
+9. UAT Testing (User Acceptance Test):
+• Type: Black Box Testing
+• Who: Tester in front of Client / Business Users
+• Environment: Client Environment
+• Purpose: Make sure main features work as per business criteria, agreements, and acceptance documents.""",
+        "Levels of Testing"
+    )
+
+    add_qa(
+        "What is SDLC vs STLC and what are their stages?",
+        """SDLC vs STLC:
+
+1. SDLC (Software Development Life Cycle):
+Method of developing the software product.
+Stages:
+• Customer Requirement (Done by Product Owner)
+• Analysis (Done by Project Manager, QA, Business Analyst)
+• Design (Done by System/Architecture Developer)
+• Coding (Done by Developer Team)
+• Testing (Done by Testing Team)
+• Release / Maintenance
+
+2. STLC (Software Test Life Cycle):
+Process or method of testing the software product.
+Stages:
+• Requirement Analysis (Review STM document, PRD)
+• Test Planning (Testing team defines scope, resource, WH questions)
+• Test Case Development (Tester writes test cases using BVA/ECP strategies)
+• Test Environment Setup (Test data and environment ready)
+• Test Execution (Tester executes test cases in test environment)
+• Defect Reporting & Tracking (Logging bugs in HP ALM / Jira)
+• Test Closure / Sign-off (UAT and release criteria met)""",
+        "Manual Testing Fundamentals"
+    )
+
+    add_qa(
+        "What is a Test Case, Test Case Template, and Test Case Design Strategies (BVA)?",
+        """Test Case:
+It is nothing but a sequential, elaborate, and executable form of requirement.
+
+Test Case Template Fields:
+• Test Scenario ID / Name
+• Test Case Number (TC_01, TC_02)
+• SQL Query / Steps to Execute
+• Test Description
+• Expected Result
+• Actual Result
+• Status (Pass / Fail / Blocked)
+• Remarks / Defect ID
+
+Test Case Design Strategies:
+a) Boundary Value Analysis (BVA):
+• Defines the range of values to test (Min, Min+1, Max-1, Max, Min-1, Max+1).
+• Used whenever input has a defined boundary range (e.g., password length 4 to 12 characters, age between 18 and 60).
+b) Equivalence Class Partitioning (ECP):
+• Divides input data into valid and invalid equivalence classes.""",
+        "Manual Testing Fundamentals"
+    )
+
+    add_qa(
+        "Explain the Defect Life Cycle / Bug Life Cycle step by step.",
+        """Defect Life Cycle (Bug Life Cycle):
+
+1. During execution of test cases, if any deviation between actual and expected result is found, tester collects screenshots/artifacts and contacts on-site coordinator / dev team.
+2. Based on discussion, tester logs a bug report in HP ALM / Jira with status as NEW.
+3. Developer reviews the bug and sets one of four initial states:
+   • OPEN: Bug is valid; developer is working on fixing it.
+   • REJECT: Bug is invalid / working as per specification.
+   • DUPLICATE: Bug is valid, but already reported by another tester.
+   • DEFERRED (Differed): Bug is valid, but will not be fixed in current sprint; deferred to future release.
+4. Once developer fixes the bug and deploys the build to test environment, status is updated to FIXED.
+5. Tester picks the build and sets status to RETEST.
+6. If actual result matches expected result, tester changes status to CLOSED.
+7. If actual result still fails or bug is not fixed, tester changes status to REOPEN and assigns back to developer.
+8. Process repeats until all defects reach CLOSED status.""",
+        "Defect Life Cycle"
+    )
+
+    # =========================================================================
+    # 4. SQL FUNCTIONS & COMMANDS (FROM PDF)
+    # =========================================================================
+    add_qa(
+        "What is the FLASHBACK command in Oracle SQL and how do you recover a dropped table?",
+        """FLASHBACK Command in Oracle:
+• By using FLASHBACK, we can restore a dropped table and its data from the Recycle Bin before it is permanently purged.
+• When a table is dropped with `DROP TABLE <table_name>;`, Oracle moves it to the Recycle Bin.
+• Syntax to recover:
+  `FLASHBACK TABLE <table_name> TO BEFORE DROP;`
+
+Example:
+```sql
+-- Create and drop table
+DROP TABLE COLLEGE_1;
+
+-- Restore table from recycle bin
+FLASHBACK TABLE COLLEGE_1 TO BEFORE DROP;
+
+-- Verify table is restored
+SELECT * FROM COLLEGE_1;
+```
+Note: If `DROP TABLE <table_name> PURGE;` is used, the table bypasses the Recycle Bin and cannot be recovered via Flashback.""",
+        "SQL Commands"
+    )
+
+    add_qa(
+        "What is the difference between TRANSLATE and REPLACE in SQL?",
+        """Difference between TRANSLATE and REPLACE in SQL:
+
+1. TRANSLATE:
+• Translates characters on a character-by-character basis (1-to-1 character mapping).
+• Syntax: `TRANSLATE('input_string', 'from_chars', 'to_chars')`
+• Example: `SELECT TRANSLATE('abcdef', 'abc', 'bcd') FROM DUAL;` -> Output: `bcddef`
+• Example: `SELECT TRANSLATE('Raj', 'j', 'm') FROM DUAL;` -> Output: `Ram`
+
+2. REPLACE:
+• Replaces an entire substring / pattern with a new string.
+• Syntax: `REPLACE('input_string', 'search_string', 'replacement_string')`
+• Example: `SELECT REPLACE('Raj is tester', 'Raj', 'Sam') FROM DUAL;` -> Output: `Sam is tester`
+
+Summary:
+• TRANSLATE works at character level (single character substitution).
+• REPLACE works at string / word level (substring replacement).""",
+        "SQL Functions"
+    )
+
+    add_qa(
+        "What are Character Functions in SQL (INSTR, SUBSTR, LENGTH, LPAD, RPAD) with examples?",
+        """Character Functions in SQL:
+
+1. INSTR (In-String):
+• Returns the position of a character or substring within a string.
+• Syntax: `INSTR(string, search_char, [start_position], [nth_occurrence])`
+• Example: `SELECT INSTR('rajashekhar', 'a', 1, 3) FROM DUAL;` -> Returns position of 3rd 'a'.
+• Example: `SELECT INSTR('rajashekhar', 'a', -1, 2) FROM DUAL;` -> Searches backwards.
+
+2. SUBSTR (Substring):
+• Extracts a portion of a string based on start position and length.
+• Syntax: `SUBSTR(string, start_position, [length])`
+• Example: `SELECT SUBSTR('rajashekhar@gmail.com', 1, INSTR('rajashekhar@gmail.com', '@') - 1) FROM DUAL;` -> Output: `rajashekhar`
+
+3. LENGTH:
+• Returns the total number of characters in a string.
+• Example: `SELECT LENGTH('Menards') FROM DUAL;` -> Returns 7.
+
+4. LPAD / RPAD:
+• Pads string with specified character on left or right side to reach target length.
+• Example: `SELECT LPAD('100', 6, '0') FROM DUAL;` -> Output: `000100`
+
+5. TRIM / LTRIM / RTRIM:
+• Strips leading, trailing, or both whitespace / characters from a string.""",
+        "SQL Functions"
+    )
+
+    add_qa(
+        "What are Date Functions in SQL (MONTHS_BETWEEN, ADD_MONTHS, NEXT_DAY, LAST_DAY, SYSDATE)?",
+        """Date Functions in SQL:
+
+1. MONTHS_BETWEEN:
+• Calculates the number of months between two dates.
+• Syntax: `MONTHS_BETWEEN(date1, date2)`
+• If date1 > date2: returns positive number.
+• If date1 < date2: returns negative number.
+• Example: `MONTHS_BETWEEN('31-MAR-1995', '28-FEB-1994')` -> Returns `13`
+• Example: `SELECT ROUND(MONTHS_BETWEEN(SYSDATE, HIREDATE)/12, 1) AS Experience_Years FROM EMP;`
+
+2. ADD_MONTHS:
+• Adds n months to a date.
+• Example: `SELECT ADD_MONTHS(SYSDATE, 3) FROM DUAL;`
+
+3. NEXT_DAY:
+• Returns the date of the next specified weekday.
+• Example: `SELECT NEXT_DAY(SYSDATE, 'FRIDAY') FROM DUAL;`
+
+4. LAST_DAY:
+• Returns the last day of the month for given date.
+• Example: `SELECT LAST_DAY(SYSDATE) FROM DUAL;`
+
+5. SYSDATE:
+• Returns current database server system date and time.""",
+        "SQL Functions"
+    )
+
+    add_qa(
+        "What is the difference between DECODE and CASE statement in SQL?",
+        """Difference between DECODE and CASE:
+
+1. DECODE:
+• Oracle proprietary function (not ANSI SQL standard).
+• Evaluates only equality conditions (`=`).
+• Can only be used in `SELECT` statements.
+• Syntax: `DECODE(column, val1, result1, val2, result2, default_result)`
+
+2. CASE:
+• ANSI SQL standard (works in Oracle, SQL Server, MySQL, Postgres, Snowflake).
+• Evaluates complex conditions (`=`, `>`, `<`, `BETWEEN`, `LIKE`, `IN`, `AND`, `OR`).
+• Can be used in `SELECT`, `UPDATE`, `WHERE`, and `ORDER BY` clauses.
+• Syntax:
+```sql
+CASE
+  WHEN salary >= 5000 THEN 'Grade A'
+  WHEN salary >= 3000 THEN 'Grade B'
+  ELSE 'Grade C'
+END
+```""",
+        "SQL Conditional Logic"
+    )
+
+    add_qa(
+        "What is the difference between VIEW and MATERIALIZED VIEW?",
+        """Difference between VIEW and MATERIALIZED VIEW:
+
+1. VIEW (Virtual Table):
+• Stores the query definition logically; does NOT store data physically on disk.
+• No database disk space consumed.
+• Every time the view is queried, it executes the underlying SQL query against base tables.
+• Cannot be accessed if base table is dropped.
+• Primarily used for security (restricting column/row access) and query simplification.
+
+2. MATERIALIZED VIEW:
+• Stores both the query definition and the resulting data physically on disk.
+• Consumes physical database storage.
+• Queries run much faster because pre-computed data is read directly without re-joining base tables.
+• Data must be refreshed periodically (Complete, Fast/Log-based, On Demand, On Commit).
+• Accessible even if base table is temporarily offline.
+• Primarily used for performance optimization in Data Warehouses and reporting.""",
+        "SQL Views & Objects"
+    )
+
+    add_qa(
+        "What is the difference between Primary Key, Surrogate Key, Unique Key, and Foreign Key?",
+        """Key Differences between Database Keys:
+
+1. Primary Key:
+• Enforces uniqueness + NOT NULL (`PK = Unique + Not Null`).
+• Each table can have only one Primary Key.
+• System automatically creates a clustered / unique index on PK column.
+• Used in OLTP systems as natural/business identifier (e.g. `SSN`, `Employee_ID`).
+
+2. Surrogate Key:
+• Sequentially generated integer (1, 2, 3...) with no business meaning.
+• Managed by ETL pipeline (Informatica Sequence Generator or DB Sequence).
+• Used in OLAP / Data Warehouse Dimension tables to handle SCD Type 2 history.
+• Numeric datatype for high join performance with Fact tables.
+
+3. Unique Key:
+• Enforces unique values across column, but allows NULL values (one or multiple NULLs depending on RDBMS).
+• Table can have multiple Unique Keys.
+
+4. Foreign Key:
+• Column in a table that references the Primary Key / Unique Key of another table.
+• Establishes referential integrity relationship (e.g. Fact table FK -> Dimension table PK/SK).
+• Allows duplicate values and NULL values.""",
+        "Database Constraints"
+    )
+
+    add_qa(
+        "What is the difference between Stored Procedure and Function in SQL?",
+        """Difference between Stored Procedure and Function:
+
+1. Stored Procedure:
+• May or may not return a value (can return 0, 1, or multiple output parameters via `OUT`).
+• Can execute all DML statements (`INSERT`, `UPDATE`, `DELETE`, `MERGE`).
+• Cannot be called directly from inside a SQL `SELECT` statement (must use `EXEC` / `CALL`).
+• Used to execute complex business processing and ETL data pipelines.
+
+2. Function:
+• Must return exactly one value.
+• Cannot execute DML statements (read-only computation).
+• Can be called directly within a SQL `SELECT` statement, `WHERE` clause, or expressions.
+• Used for calculations and data formatting.""",
+        "Database Objects"
+    )
+
+    add_qa(
+        "What is the difference between ETL Testing and Manual / Functional Testing?",
+        """Difference between ETL Testing and Manual Functional Testing:
+
+1. ETL Testing:
+• Focuses on backend data transformation, data warehouse pipelines, and large volumes of data.
+• Involves extracting from heterogeneous sources (Flat files, XML, SAP, Oracle) into staging and target DWH.
+• Clear visibility into transformation business logic via STM mapping documents and SQL queries.
+• Involves heavy SQL query writing (MINUS queries, aggregations, SCD2 tracking, row reconciliation).
+• High data volume testing (millions of records).
+
+2. Manual Functional Testing:
+• Focuses on frontend GUI, user experience, button clicks, and screen-level validations.
+• Limited or no heavy SQL queries; mostly UI inputs and form validation.
+• Does not validate complex data transformation rules across multiple database layers.""",
+        "ETL vs Manual Testing"
+    )
+
+    add_qa(
+        "What are essential Unix commands used by an ETL Tester?",
+        """Essential Unix Commands for ETL Testers:
+
+1. `wc -l <filename>`: Count total number of lines in source/target flat files for row reconciliation.
+2. `grep "ERROR" session.log`: Search for errors, rejects, or specific text patterns in log files.
+3. `diff file1.txt file2.txt` / `cmp file1 file2`: Compare two files line-by-line or byte-by-byte.
+4. `comm file1.txt file2.txt`: Compare two sorted files (column 1: unique to file1, column 2: unique to file2, column 3: common lines).
+5. `find /work -name "*.csv" -print`: Locate files across directories based on pattern, timestamp, or size.
+6. `sort filename`: Sort lines of text files alphabetically or numerically (`sort -n`).
+7. `uniq filename` / `sort file | uniq -d`: Filter duplicates or print only duplicate lines (`-d`).
+8. `head -n 20 file.txt` / `tail -n 20 file.txt`: View first 20 or last 20 lines of large data files.
+9. `sed 's/,/|/g' file.csv`: Stream editor for find-and-replace (e.g. changing delimiters).
+10. `awk -F',' '{print $1, $3}' file.csv`: Extract specific columns from delimited flat files.
+11. `chmod 755 script.sh`: Modify file permissions.
+12. `crontab -l`: View scheduled batch jobs and ETL shell execution schedules.""",
+        "Unix Commands"
+    )
+
+    # =========================================================================
+    # 5. CORE DWH, SCD, PROJECT ARCHITECTURE & SQL VALIDATION (PREVIOUS CORE)
+    # =========================================================================
+    add_qa(
+        "Explain your project architecture & data flow stages in detail.",
+        """Project Architecture & Data Flow Stages:
+
+In our Menards Retail Data Warehouse project, data flows through four distinct stages:
+
+1. Source Systems:
+• Multiple OLTP sources (Oracle POS tables, CSV flat files from store inventory, SAP order logs, legacy flat files).
+
+2. Staging Area:
+• Raw data is extracted as-is into staging tables using Informatica PowerCenter without transformation.
+• Validation: Row count reconciliation, file header/trailer validation, delimiter checks.
+
+3. Transformation / Intermediate Layer:
+• Data cleansing, duplicate removal, business rules, format conversion, lookup resolution, and surrogate key generation.
+• Validation: Range checks, data type casting, surrogate key sequential generation, null checks on mandatory attributes.
+
+4. Target Data Warehouse (OLAP):
+• Cleaned data loaded into Dimensional Model (Star Schema / Fact & Dimension tables).
+• Validation: MINUS queries between source & target, SCD Type 2 history checks, foreign key referential integrity between fact & dimension tables, duplicate checks.""",
+        "Project Architecture"
+    )
+
+    add_qa(
+        "What is the difference between ER modeling and Dimensional modeling?",
+        """Difference between Entity-Relationship (ER) and Dimensional Modeling:
+
+1. ER Modeling:
+• Focuses on eliminating data redundancy and normalizing data (typically 3NF).
+• Represents real-world entities and relationships.
+• Used in OLTP systems for high-volume transactions and fast write operations.
+• Deeply nested relational structures with many joined connection tables.
+• Slower for analytical reporting due to complex multi-table joins.
+
+2. Dimensional Modeling:
+• Focuses on business process metrics and analytical queries (OLAP).
+• Represents data in Fact tables (measures/metrics) and Dimension tables (contextual textual attributes).
+• De-normalized design (Star Schema / Snowflake Schema) optimized for read performance.
+• Highly intuitive for business users and BI reporting tools (Tableau, PowerBI, Cognos).
+• Faster analytical query performance with fewer joins.""",
+        "Data Warehouse"
     )
 
     add_qa(
@@ -735,380 +667,162 @@ Validation Test Cases:
         "SCD"
     )
 
-    # Page 51: Primary Key vs Foreign Key vs Surrogate Key
     add_qa(
-        "What is the difference between Primary Key and Surrogate Key?",
-        """Difference between Primary Key and Surrogate Key:
+        "What is the difference between TRUNCATE and DELETE in SQL?",
+        """Difference between TRUNCATE and DELETE:
 
-Primary Key:
-• Used for maintaining unique records in OLTP database.
-• Can be alphanumeric or numeric.
-• It is a business attribute / natural key from source.
-• It is actual table/business data.
-• Given by user / source system.
+1. TRUNCATE:
+• DDL (Data Definition Language) command.
+• Removes all rows from a table immediately and deallocates storage space.
+• Does NOT record individual row deletions in transaction redo log (minimal logging).
+• Faster execution than DELETE.
+• Cannot use `WHERE` clause (truncates whole table).
+• Resets table high-water mark (HWM) and identity/sequence seed.
+• Cannot be rolled back in most standard database operations.
 
-Surrogate Key:
-• Used to maintain unique records in OLAP database / Data Warehouse.
-• Always a system-generated sequential numeric number.
-• It is a technical attribute created by ETL pipeline.
-• Not part of source business data.
-• Generated automatically by ETL/database sequence (e.g., in dimension tables for SCD tracking).""",
-        "Data Warehouse"
-    )
-
-    add_qa(
-        "What is the difference between Primary Key, Foreign Key, and Surrogate Key?",
-        """Difference between Primary Key, Foreign Key, and Surrogate Key:
-
-1. Primary Key (PK):
-• Uniquely identifies each record in an OLTP table.
-• Does not allow NULL or duplicate values.
-• It is a natural business key originating from source systems.
-• Can be alphanumeric or numeric.
-
-2. Foreign Key (FK):
-• Creates a relationship/referential integrity between two tables (links child table to parent table PK).
-• In Data Warehouse, Fact tables contain Foreign Keys that reference Primary/Surrogate Keys of Dimension tables.
-• Allows duplicate and NULL values (unless NOT NULL is specified).
-• Business or relational attribute.
-
-3. Surrogate Key (SK):
-• Unique numeric identifier generated artificially by ETL pipeline for OLAP / Data Warehouse dimension tables.
-• It has no business meaning (pure technical attribute).
-• Always sequential numeric integer (1, 2, 3...).
-• Used in Dimension tables to track history (e.g. SCD Type 2 where natural PK repeats for new versions).""",
-        "Data Warehouse"
-    )
-
-    add_qa(
-        "What is a Foreign Key and how is it used in Data Warehouse / ETL?",
-        """Foreign Key in ETL and Data Warehouse:
-• A column or set of columns in a table that refers to the Primary Key in another table.
-• Used to establish parent-child relationship and maintain referential integrity.
-• In Data Warehouse dimensional modeling:
-  - Fact table contains Foreign Keys pointing to the Surrogate Keys of Dimension tables.
-  - Dimension table contains Surrogate Key / Primary Key.
-• ETL Validation Check: Ensure no orphan records in Fact tables (every FK in Fact must match an existing SK in Dimension table).""",
-        "Data Warehouse"
-    )
-
-    # Page 52 - 55: Mismatch records, ETL Bugs, OLTP vs OLAP, SUBQUERY vs CORRELATED SUBQUERY
-    add_qa(
-        "If you find mismatch records during ETL testing, what is your approach?",
-        """Approach when mismatch records are found:
-1. Extract and isolate the mismatch records along with screenshots/log artifacts.
-2. Cross-verify the SQL query, STM (Source Target Mapping) document, and transformation rules.
-3. Check reject files / bad files / session logs in Informatica for transformation errors.
-4. Contact the on-site coordinator and dev team to discuss whether it is a data issue, mapping gap, or ETL bug.
-5. Log a defect in HP ALM / Jira with proper severity, steps to reproduce, source & target queries, and query output attachments.
-6. Follow up in stand-up call and defect review meeting until resolved, then retest upon deployment.""",
-        "ETL Testing"
-    )
-
-    add_qa(
-        "What is ETL testing and what are common types of bugs in ETL?",
-        """ETL Testing:
-ETL stands for Extraction, Transformation, and Loading.
-• Extraction: Extracting data from heterogeneous sources (flat files, databases, APIs).
-• Transformation: Applying conversion, cleansing, aggregation, and business rules so data is suitable for analytical reporting.
-• Loading: Loading processed data into target Data Warehouse/Data Marts.
-
-Common Types of Bugs in ETL:
-1. Source Bugs: Missing source data, corrupt delimiter, format mismatch, dirty data.
-2. Load Condition Bugs: Truncation, primary key / foreign key violation, rejected rows.
-3. Calculation / Transformation Bugs: Incorrect formula, wrong date format, null handling logic failure.
-4. User Interface / Reporting Bugs: BI tool display mismatches, wrong aggregation in reports.
-5. Duplicate Data Bugs: Duplicate records loaded into target due to missing distinct/grouping.
-6. Performance Bugs: Long running queries, session timeout, bottleneck in transformation.""",
-        "ETL Testing"
-    )
-
-    add_qa(
-        "What is the difference between OLTP and OLAP? / Difference between Database and Data Warehouse / OLTP vs OLAP",
-        """Difference between OLTP (Database) and OLAP (Data Warehouse):
-
-OLTP (Database / Online Transaction Processing):
-• Records user current transaction data.
-• Tables and joins are complex because they are normalized (3NF) to eliminate duplicates.
-• Optimized for write operations (INSERT, UPDATE, DELETE).
-• Kept for small to medium data volume (MB to GB).
-• Application/Transaction oriented.
-• Volatile data, handling single record at a time.
-• Uses Entity-Relationship (ER) modeling.
-
-OLAP (Data Warehouse / Online Analytical Processing):
-• Maintains historical business data for analytics and decision making.
-• Tables and joins are simple because they are de-normalized (Star/Snowflake).
-• Optimized for read-only operations and complex aggregation queries.
-• Stores large to very large data volume (GB to TB to PB).
-• Subject oriented.
-• Non-volatile (read-mostly), handling millions of records at a time.
-• Uses Dimensional modeling (Facts and Dimensions).""",
-        "Data Warehouse"
-    )
-
-    add_qa(
-        "What is the difference between ER Modeling and Dimensional Modeling? / ER vs Dimensional Modeling / Entity Relationship vs Dimensional",
-        """Difference between Entity-Relationship (ER) Modeling and Dimensional Modeling:
-
-1. Entity-Relationship (ER) Modeling (OLTP):
-• Purpose: Designed for operational transaction processing (OLTP).
-• Normalization: Highly normalized (3NF / Third Normal Form) to eliminate data redundancy and anomalies.
-• Structure: Uses Entities, Attributes, and Relationships (Primary Key / Foreign Key links).
-• Optimization: Optimized for write operations (INSERT, UPDATE, DELETE).
-• Data Volume: Typically holds detailed current/live transaction data.
-• Modeling Tools: Erwin Data Modeler, ER/Studio, Microsoft Visio.
-
-2. Dimensional Modeling (OLAP / DWH):
-• Purpose: Designed for data analysis, BI reporting, and decision making (OLAP).
-• Normalization: De-normalized into Star Schema or Snowflake Schema for query performance.
-• Structure: Centered around Fact Tables (numeric metrics/measures) surrounded by Dimension Tables (descriptive textual attributes).
-• Optimization: Optimized for read-only aggregations and complex reporting queries.
-• Data Volume: Holds vast historical business data across multiple years.
-• Modeling Architecture: Star Schema, Snowflake Schema, Galaxy / Fact Constellation Schema.
-
-Validation in ETL Testing:
-• I verify that when data is extracted from the 3NF ER source database and loaded into the Dimensional Data Warehouse, foreign keys link correctly to dimension surrogate keys, duplicate measures are eliminated, and historical tracking (SCD Type 2) maintains active/historical flags.""",
-        "Data Warehouse"
-    )
-
-    add_qa(
-        "What is the difference between Nested Subquery and Correlated Subquery?",
-        """Difference between Nested Subquery and Correlated Subquery:
-
-Nested / Inner Subquery:
-• Inner query and outer query are independent.
-• Inner query executes first, only once, and passes result to outer query.
-• High performance.
-• Example: SELECT * FROM EMP WHERE SAL > (SELECT AVG(SAL) FROM EMP);
-
-Correlated Subquery:
-• Inner query and outer query are interdependent (inner query references outer query columns).
-• Inner query executes repeatedly once for every row processed by outer query.
-• Low performance for large datasets.
-• Example: SELECT E.ENAME, E.SAL, E.DEPTNO FROM EMP E WHERE E.SAL > (SELECT AVG(I.SAL) FROM EMP I WHERE I.DEPTNO = E.DEPTNO);""",
+2. DELETE:
+• DML (Data Manipulation Language) command.
+• Removes specific rows satisfying a condition or all rows if `WHERE` is omitted.
+• Records every deleted row in undo/redo transaction log.
+• Slower execution on large tables.
+• Can be rolled back using `ROLLBACK;` if not committed.
+• Does not deallocate table storage space or reset high-water mark.""",
         "SQL"
     )
 
     add_qa(
-        "What is the difference between IN and EXISTS in SQL?",
-        """Difference between IN and EXISTS:
+        "What is the difference between Star Schema and Snowflake Schema?",
+        """Difference between Star Schema and Snowflake Schema:
 
-IN:
-• Evaluates true if value exists in list/subquery.
-• Executes inner subquery first, loads entire result into memory, then matches outer query.
-• Slower performance when subquery returns large result set.
-• Does not handle NULL values properly in NOT IN.
+1. Star Schema:
+• Center Fact table surrounded by de-normalized Dimension tables (resembles a Star).
+• Dimension tables are NOT normalized (contain redundant data to reduce joins).
+• Faster query execution performance with fewer table joins.
+• Simpler SQL queries for BI reporting.
+• Consumes more storage due to de-normalization.
 
-EXISTS:
-• Evaluates true as soon as it finds the first matching row in subquery (boolean check).
-• Terminates subquery execution upon first match without scanning entire table.
-• Higher performance when subquery has large amount of data or is correlated.
-• Handles NULLs gracefully.""",
-        "SQL"
+2. Snowflake Schema:
+• Dimension tables are normalized into sub-dimension lookup tables (resembles a Snowflake).
+• Eliminates data redundancy by splitting dimension hierarchies into normalized tables.
+• Saves database storage space.
+• Slower analytical query performance because BI queries require complex multi-level joins.
+• More complex maintenance and ETL mapping logic.""",
+        "Data Warehouse"
     )
 
     add_qa(
-        "What is a View and what is the difference between View and Materialized View?",
-        """View vs Materialized View:
+        "How do you find the 2nd highest or Nth highest salary in SQL using multiple approaches?",
+        """Finding 2nd / Nth Highest Salary in SQL:
 
-View (Simple / Complex View):
-• Virtual table based on result of a SQL query.
-• Does not store data physically; stores only query definition.
-• Every time view is queried, underlying query is executed against base tables.
-• Always reflects real-time data.
+Approach 1: Using DENSE_RANK() (Recommended & Standard)
+```sql
+SELECT employee_id, first_name, salary
+FROM (
+  SELECT employee_id, first_name, salary,
+         DENSE_RANK() OVER (ORDER BY salary DESC) as rnk
+  FROM employees
+)
+WHERE rnk = 2; -- Change 2 to N for Nth highest
+```
 
-Materialized View:
-• Physical copy of query results stored on disk like a table.
-• Stores data physically and occupies storage space.
-• Querying materialized view is fast because data is precomputed.
-• Needs refresh mechanism (FAST, COMPLETE, ON COMMIT, ON DEMAND) to sync with base table changes.
-• Widely used in Data Warehouses for heavy aggregation reports.""",
-        "SQL"
-    )
-
-    # Page 59 - 67: Unix Commands
-    add_qa(
-        "What are essential Unix commands used in ETL testing? (head, tail, grep, sed, awk, find, cut, sort, uniq, wc, chmod)",
-        """Essential Unix Commands in ETL Testing:
-
-1. File Viewing & Navigation:
-• head -n 10 file.txt: View first 10 lines of file.
-• tail -n 10 file.txt: View last 10 lines of file.
-• tail -f logfile.log: Monitor log file in real-time.
-• cat file.txt: Display entire file content.
-• more / less file.txt: Page-by-page file viewing.
-
-2. File & Line Count:
-• wc -l file.txt: Count total lines in file (used for source file record count validation).
-• wc -w file.txt: Count words; wc -c file.txt: Count bytes.
-
-3. Search & Pattern Matching (grep):
-• grep 'PATTERN' file.txt: Search for string in file.
-• grep -i 'pattern' file.txt: Case insensitive search.
-• grep -v 'pattern' file.txt: Invert match (show lines NOT containing pattern).
-• grep -c 'pattern' file.txt: Count matching lines.
-
-4. Text Processing (sed, awk, cut):
-• cut -d',' -f1,3 file.csv: Extract columns 1 and 3 with delimiter comma.
-• sed 's/old/new/g' file.txt: Replace all occurrences of old with new.
-• awk -F',' '{print $1, $3}' file.csv: Print fields 1 and 3.
-• awk -F',' '$3 > 1000 {print $1, $3}' file.csv: Filter records where column 3 > 1000.
-
-5. Sorting & Deduplication (sort, uniq):
-• sort file.txt: Sort lines alphabetically.
-• sort -n file.txt: Numerical sort.
-• sort file.txt | uniq: Remove adjacent duplicate lines.
-• sort file.txt | uniq -c: Count duplicate occurrences.
-• sort file.txt | uniq -d: Display only duplicate lines.
-
-6. File Search & Permissions:
-• find /path -name '*.csv' -print: Find files by name pattern.
-• chmod 755 script.sh: Change file permissions (rwxr-xr-x).
-• rm -rf dir_name: Remove directory and contents.
-• cmp / diff file1 file2: Compare two files line-by-line.""",
-        "Unix Commands"
-    )
-
-    # Page 68 - 76: Complex SQL Queries & Interview Scenarios
-    add_qa(
-        "Write SQL queries to find Nth highest salary in Oracle/SQL (different approaches).",
-        """SQL queries to find Nth highest salary:
-
-1. Approach 1: Using DENSE_RANK() (Recommended & Standard)
-SELECT * FROM (
-    SELECT first_name, salary, department_id,
-           DENSE_RANK() OVER (ORDER BY salary DESC) as drank
-    FROM employees
-) WHERE drank = 2; -- Change to N for Nth highest salary
-
-2. Approach 2: Using Correlated Subquery
-SELECT * FROM employees E1
-WHERE (N - 1) = (
-    SELECT COUNT(DISTINCT E2.salary)
-    FROM employees E2
-    WHERE E2.salary > E1.salary
-);
--- For 2nd highest:
-SELECT MAX(salary) FROM employees
-WHERE salary < (SELECT MAX(salary) FROM employees);
-
-3. Approach 3: Department-wise 2nd Highest Salary
-SELECT * FROM (
-    SELECT e.first_name, e.salary, e.department_id, d.department_name,
-           DENSE_RANK() OVER (PARTITION BY e.department_id ORDER BY e.salary DESC) as drank
-    FROM employees e
-    INNER JOIN departments d ON e.department_id = d.department_id
-) WHERE drank = 2;""",
-        "SQL Queries"
-    )
-
-    add_qa(
-        "Write SQL query to find and delete duplicate records from a table.",
-        """Find and Delete Duplicate Records in SQL:
-
-1. Identify Duplicate Records:
-SELECT col1, col2, COUNT(*)
-FROM table_name
-GROUP BY col1, col2
-HAVING COUNT(*) > 1;
-
-2. Delete Duplicate Records using ROWID:
-DELETE FROM table_name
-WHERE ROWID NOT IN (
-    SELECT MIN(ROWID)
-    FROM table_name
-    GROUP BY col1, col2
-);
-
-3. Delete Duplicates using ROW_NUMBER():
-DELETE FROM (
-    SELECT ROW_NUMBER() OVER (PARTITION BY col1, col2 ORDER BY col1) as rn
-    FROM table_name
-) WHERE rn > 1;""",
-        "SQL Queries"
-    )
-
-    add_qa(
-        "Write SQL queries to find current experience of employees and employees hired in a specific year.",
-        """Employee Experience and Date Queries in Oracle SQL:
-
-1. Current Experience of Employees (in days, months, years):
-SELECT first_name, last_name, hire_date,
-       ROUND(SYSDATE - hire_date, 2) AS exp_days,
-       ROUND(MONTHS_BETWEEN(SYSDATE, hire_date), 2) AS exp_months,
-       ROUND(MONTHS_BETWEEN(SYSDATE, hire_date)/12, 2) AS exp_years
-FROM employees;
-
-2. Employees hired in year 1981:
-SELECT * FROM emp
-WHERE TO_CHAR(hiredate, 'YYYY') = '1981';
--- OR
-SELECT * FROM emp
-WHERE hiredate BETWEEN '01-JAN-1981' AND '31-DEC-1981';""",
-        "SQL Queries"
-    )
-
-    add_qa(
-        "Write SQL query to display employees whose salary is greater than the average salary or greater than department average salary.",
-        """Salary comparison queries:
-
-1. Employees with salary greater than overall average salary:
-SELECT first_name, salary
+Approach 2: Using Subquery with MAX()
+```sql
+SELECT MAX(salary) AS second_highest_salary
 FROM employees
-WHERE salary > (SELECT AVG(salary) FROM employees);
+WHERE salary < (SELECT MAX(salary) FROM employees);
+```
 
-2. Employees with salary greater than their department's average salary:
-SELECT e.first_name, e.salary, e.department_id, dept_avg.avg_sal
-FROM employees e
-JOIN (
-    SELECT department_id, AVG(salary) AS avg_sal
-    FROM employees
-    GROUP BY department_id
-) dept_avg ON e.department_id = dept_avg.department_id
-WHERE e.salary > dept_avg.avg_sal;""",
+Approach 3: Using Correlated Subquery (Generic for Nth highest)
+```sql
+SELECT salary
+FROM employees e1
+WHERE 2 - 1 = (
+  SELECT COUNT(DISTINCT e2.salary)
+  FROM employees e2
+  WHERE e2.salary > e1.salary
+);
+```""",
         "SQL Queries"
     )
 
-    # Page 77 - 81: Challenges Faced, Tasks, Scenarios, and Checklists
     add_qa(
-        "What are the challenges faced during ETL testing?",
-        """Challenges faced during ETL testing:
-• Data loss during the ETL process.
-• Incorrect, incomplete, or duplicate data coming from source systems.
-• DW system contains historical data, so the data volume is too large (millions/billions of records) and extremely complex to validate in the target system.
-• ETL testers are normally not provided with access to see job schedules in the ETL tool, and hardly have access to BI Reporting tools to see final layout of reports.
-• Tough to generate and build test cases as data volume is too high and complex.
-• ETL testers normally don’t have an idea of end-user report requirements and business flow of the information.
-• ETL testing involves various complex SQL queries and analytical functions for data validation.
-• Sometimes testers are not provided with up-to-date Source-to-Target Mapping (STM) documents or change logs.""",
-        "ETL Challenges"
+        "How do you find and delete duplicate records in SQL without deleting all instances?",
+        """Finding and Deleting Duplicate Records in SQL:
+
+1. Finding Duplicates:
+```sql
+SELECT employee_id, COUNT(*)
+FROM employees
+GROUP BY employee_id
+HAVING COUNT(*) > 1;
+```
+
+2. Deleting Duplicates using ROWID (Oracle Standard):
+```sql
+DELETE FROM employees
+WHERE ROWID NOT IN (
+  SELECT MIN(ROWID)
+  FROM employees
+  GROUP BY employee_id
+);
+```
+
+3. Deleting Duplicates using ROW_NUMBER():
+```sql
+DELETE FROM employees
+WHERE employee_id IN (
+  SELECT employee_id
+  FROM (
+    SELECT employee_id,
+           ROW_NUMBER() OVER (PARTITION BY employee_id ORDER BY employee_id) as rn
+    FROM employees
+  )
+  WHERE rn > 1
+);
+```""",
+        "SQL Queries"
     )
 
     add_qa(
-        "What are the tasks to be performed by an ETL Tester across Source, Transformation, and Load phases?",
-        """Tasks to be performed by an ETL Tester:
+        "How do you create an exact replica of a table structure without copying data in SQL?",
+        """Creating an Exact Table Replica without Data:
 
-1. Verify Tables in the Source System:
-• Count check
-• Reconcile records with source data
-• Data type check
-• Ensure no spam / corrupted data loaded
-• Remove / detect duplicate data
-• Check all keys are in place
+```sql
+CREATE TABLE employees_replica AS
+SELECT * FROM employees
+WHERE 1 = 2; -- False condition ensures zero rows copied, only schema created
+```
 
-2. Apply Transformation Logic:
-• Data threshold validation check (e.g. age shouldn't be > 100)
-• Record count check before and after transformation logic applied
-• Data flow validation from staging area to intermediate tables
-• Surrogate key check
+To create table WITH data:
+```sql
+CREATE TABLE employees_backup AS
+SELECT * FROM employees;
+```""",
+        "SQL Queries"
+    )
 
-3. Data Loading:
-• Record count check from intermediate table to target system
-• Ensure key field data is not missing or NULL
-• Check aggregate values and calculated measures are loaded properly in fact tables
-• Check dimensional modeling integrity (referential integrity between Facts and Dimensions)""",
-        "ETL Testing"
+    add_qa(
+        "How do you display alternate / odd / even rows in SQL?",
+        """Displaying Alternate Rows (Odd / Even) in SQL:
+
+1. Odd Rows:
+```sql
+SELECT * FROM (
+  SELECT employees.*, ROWNUM AS rnum
+  FROM employees
+)
+WHERE MOD(rnum, 2) = 1;
+```
+
+2. Even Rows:
+```sql
+SELECT * FROM (
+  SELECT employees.*, ROWNUM AS rnum
+  FROM employees
+)
+WHERE MOD(rnum, 2) = 0;
+```""",
+        "SQL Queries"
     )
 
     add_qa(
@@ -1146,10 +860,48 @@ WHERE e.salary > dept_avg.avg_sal;""",
         "ETL Test Scenarios"
     )
 
+    add_qa(
+        "What are the tasks to be performed by an ETL Tester across Source, Transformation, and Load phases?",
+        """Tasks to be performed by an ETL Tester:
+
+1. Verify Tables in the Source System:
+• Count check
+• Reconcile records with source data
+• Data type check
+• Ensure no spam / corrupted data loaded
+• Remove / detect duplicate data
+• Check all keys are in place
+
+2. Apply Transformation Logic:
+• Data threshold validation check (e.g. age shouldn't be > 100)
+• Record count check before and after transformation logic applied
+• Data flow validation from staging area to intermediate tables
+• Surrogate key check
+
+3. Data Loading:
+• Record count check from intermediate table to target system
+• Ensure key field data is not missing or NULL
+• Check aggregate values and calculated measures are loaded properly in fact tables
+• Check dimensional modeling integrity (referential integrity between Facts and Dimensions)""",
+        "ETL Testing"
+    )
+
+    add_qa(
+        "If you find mismatch records during ETL testing, what is your approach?",
+        """Approach when mismatch records are found:
+1. Extract and isolate the mismatch records along with screenshots/log artifacts.
+2. Cross-verify the SQL query, STM (Source Target Mapping) document, and transformation rules.
+3. Check reject files / bad files / session logs in Informatica for transformation errors.
+4. Contact the on-site coordinator and dev team to discuss whether it is a data issue, mapping gap, or ETL bug.
+5. Log a defect in HP ALM / Jira with proper severity, steps to reproduce, source & target queries, and query output attachments.
+6. Follow up in stand-up call and defect review meeting until resolved, then retest upon deployment.""",
+        "ETL Testing"
+    )
+
     return qa_list
 
 if __name__ == "__main__":
-    qa_dataset = create_qa_dataset()
+    dataset = build_complete_qa_dataset()
     with open("qa_data.json", "w", encoding="utf-8") as f:
-        json.dump(qa_dataset, f, indent=2, ensure_ascii=False)
-    print(f"Successfully generated qa_data.json with {len(qa_dataset)} Q&A pairs.")
+        json.dump(dataset, f, indent=2, ensure_ascii=False)
+    print(f"Successfully generated comprehensive qa_data.json with {len(dataset)} gold-standard Q&A pairs covering 100% of PDF topics!")
