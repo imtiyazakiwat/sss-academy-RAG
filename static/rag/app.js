@@ -24,6 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
   let history = JSON.parse(localStorage.getItem("RAG_HISTORY") || "[]");
   let isFirstChunk = true;
   let streamingEnabled = false;
+  let streamAccum = "";
 
   renderHistory();
   fetchStats();
@@ -98,6 +99,7 @@ document.addEventListener("DOMContentLoaded", () => {
     resultsSection.classList.remove("hidden");
     isFirstChunk = true;
     streamingEnabled = true;
+    streamAccum = "";
 
     answerBody.innerHTML = `
       <div style="display: flex; align-items: center; gap: 8px; color: #94a3b8;">
@@ -174,7 +176,8 @@ document.addEventListener("DOMContentLoaded", () => {
         isFirstChunk = false;
         ttftValue.innerText = `${(performance.now() - ctx.startTime).toFixed(0)} ms (TTFT)`;
       }
-      answerBody.innerHTML = formatMarkdown(data.text);
+      streamAccum += data.text;
+      answerBody.innerHTML = formatMarkdown(streamAccum);
     }
     if (data.type === "complete") {
       renderMetrics({ mode: data.mode, confidence: data.confidence });
