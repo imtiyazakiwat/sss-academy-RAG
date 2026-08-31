@@ -82,6 +82,10 @@ lora_config = LoraConfig(
 )
 
 model = get_peft_model(model, lora_config)
+
+# CRITICAL: Enable input gradients so gradient checkpointing works with PEFT
+model.enable_input_require_grads()
+
 model.print_trainable_parameters()
 print("✅ Model loaded with LoRA adapters!")
 """))
@@ -118,8 +122,7 @@ training_args = TrainingArguments(
     optim="adamw_torch",
     lr_scheduler_type="cosine",
     save_strategy="no",
-    report_to="none",
-    gradient_checkpointing=True
+    report_to="none"
 )
 
 trainer = SFTTrainer(
