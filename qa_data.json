@@ -30,6 +30,26 @@
     "topic": "Agile Methodology"
   },
   {
+    "question": "What is SBI (Sprint Backlog Item) in Agile / Scrum / ETL?",
+    "answer": "SBI (Sprint Backlog Item):\n• It is a segment of PBI (Product Backlog Item) that is selected by the team during the scrum sprint.\n• It represents the specific number of PBIs considered and committed for delivery in the current active sprint.\n• Managed and updated during daily scrum meetings and tracked on the sprint burn-down chart.",
+    "topic": "Agile Methodology"
+  },
+  {
+    "question": "What is PBI (Product Backlog Item) in Agile / Scrum / ETL?",
+    "answer": "PBI (Product Backlog Item):\n• It is a list of requirements required by the customer or business stakeholder.\n• It is a single individual element of work that exists in the Product Backlog (PB).\n• Created and maintained by the Product Owner (PO) and broken down from large Epics and User Stories.",
+    "topic": "Agile Methodology"
+  },
+  {
+    "question": "What is an Epic in Agile / Scrum / ETL?",
+    "answer": "Epic in Agile:\n• Epics are large pieces of work (Major features, high-level customer requirements, business requirements).\n• An Epic is too big to complete in a single sprint, so it is broken down into smaller User Stories.\n• Each user story contains individual requirements called Product Backlog Items (PBI).",
+    "topic": "Agile Methodology"
+  },
+  {
+    "question": "What is a User Story and Story Points in Agile / Scrum / ETL?",
+    "answer": "User Story & Story Points:\n\n1. User Story:\n• It is a non-technical statement of software system requirements written from the end user point of view (e.g. As a user, I want to...).\n\n2. Story Points:\n• Story points are used to determine and estimate the workload effort, time, and complexity for completing a user story.",
+    "topic": "Agile Methodology"
+  },
+  {
     "question": "What are Epic, User Story, Story Points, PBI, and SBI in Agile?",
     "answer": "Agile Method Terminologies:\n\n1. Epic:\n• Epics are large pieces of work (Features, customer requirement, business requirement).\n• Epics are broken down into smaller items called Stories.\n• Each story contains individual requirements called Product Backlog Items (PBI).\n\n2. User Story:\n• It is a non-technical statement of software system requirements written from the end user point of view.\n\n3. Story Points:\n• Story points are used to determine workload effort and complexity for a user story.\n\n4. PBI (Product Backlog Item):\n• It is a list of requirements required by the customer.\n• It is a single element of work that exists in PB (Product Backlog).\n\n5. SBI (Sprint Backlog Item):\n• It is a segment of PBI that is selected by the team during the scrum sprint (Number of PBIs considered in the current sprint).",
     "topic": "Agile Methodology"

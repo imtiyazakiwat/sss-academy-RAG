@@ -150,17 +150,34 @@ async def ask_question_stream(req: QueryRequest):
         yield f"data: {json.dumps(meta)}\n\n".encode("utf-8")
 
         full_text = []
-        if chosen_engine == "mlx" and qa_system.mlx_generator and qa_system.mlx_generator.is_loaded:
-            for token in qa_system.mlx_generator.stream_generate(q):
-                full_text.append(token)
-                chunk_data = {"type": "token", "text": token}
+        if chosen_engine == "mlx":
+            if not qa_system.mlx_generator:
+                try:
+                    qa_system.mlx_generator = MLXLocalGenerator()
+                except Exception as e:
+                    print(f"Failed to lazily load MLX: {e}")
+
+            if qa_system.mlx_generator and qa_system.mlx_generator.is_loaded:
+                for token in qa_system.mlx_generator.stream_generate(q):
+                    full_text.append(token)
+                    chunk_data = {"type": "token", "text": token}
+                    yield f"data: {json.dumps(chunk_data)}\n\n".encode("utf-8")
+            else:
+                fallback_ans = top.get("answer", "No local model loaded and no match found.")
+                full_text.append(fallback_ans)
+                chunk_data = {"type": "token", "text": fallback_ans}
                 yield f"data: {json.dumps(chunk_data)}\n\n".encode("utf-8")
         else:
-            qa_system.generator.set_api_key(key_to_use)
-            for token in qa_system.generator.stream_generate(q, results):
-                full_text.append(token)
-                chunk_data = {"type": "token", "text": token}
-                yield f"data: {json.dumps(chunk_data)}\n\n".encode("utf-8")
+            if not key_to_use:
+                err_msg = "⚠️ Please configure a valid Groq API Key in settings or use the Local Apple Silicon MLX engine."
+                full_text.append(err_msg)
+                yield f"data: {json.dumps({'type': 'token', 'text': err_msg})}\n\n".encode("utf-8")
+            else:
+                qa_system.generator.set_api_key(key_to_use)
+                for token in qa_system.generator.stream_generate(q, results):
+                    full_text.append(token)
+                    chunk_data = {"type": "token", "text": token}
+                    yield f"data: {json.dumps(chunk_data)}\n\n".encode("utf-8")
 
         total_ms = round((time.time() - t0) * 1000, 1)
         done_data = {

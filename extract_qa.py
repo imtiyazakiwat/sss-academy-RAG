@@ -145,6 +145,45 @@ Details of the 6 phases:
     )
 
     add_qa(
+        "What is SBI (Sprint Backlog Item) in Agile / Scrum / ETL?",
+        """SBI (Sprint Backlog Item):
+• It is a segment of PBI (Product Backlog Item) that is selected by the team during the scrum sprint.
+• It represents the specific number of PBIs considered and committed for delivery in the current active sprint.
+• Managed and updated during daily scrum meetings and tracked on the sprint burn-down chart.""",
+        "Agile Methodology"
+    )
+
+    add_qa(
+        "What is PBI (Product Backlog Item) in Agile / Scrum / ETL?",
+        """PBI (Product Backlog Item):
+• It is a list of requirements required by the customer or business stakeholder.
+• It is a single individual element of work that exists in the Product Backlog (PB).
+• Created and maintained by the Product Owner (PO) and broken down from large Epics and User Stories.""",
+        "Agile Methodology"
+    )
+
+    add_qa(
+        "What is an Epic in Agile / Scrum / ETL?",
+        """Epic in Agile:
+• Epics are large pieces of work (Major features, high-level customer requirements, business requirements).
+• An Epic is too big to complete in a single sprint, so it is broken down into smaller User Stories.
+• Each user story contains individual requirements called Product Backlog Items (PBI).""",
+        "Agile Methodology"
+    )
+
+    add_qa(
+        "What is a User Story and Story Points in Agile / Scrum / ETL?",
+        """User Story & Story Points:
+
+1. User Story:
+• It is a non-technical statement of software system requirements written from the end user point of view (e.g. As a user, I want to...).
+
+2. Story Points:
+• Story points are used to determine and estimate the workload effort, time, and complexity for completing a user story.""",
+        "Agile Methodology"
+    )
+
+    add_qa(
         "What are Epic, User Story, Story Points, PBI, and SBI in Agile?",
         """Agile Method Terminologies:
 

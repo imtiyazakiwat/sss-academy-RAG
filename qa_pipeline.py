@@ -48,7 +48,7 @@ def general_linguistic_normalize(text: str) -> list:
     raw = text.strip()
     lower = raw.lower()
 
-    # 1. Universal conversational expansions
+    # 1. Universal conversational expansions & acronyms
     expanded = lower
     expansions = [
         (r'\bdiff\b', 'difference'),
@@ -62,6 +62,11 @@ def general_linguistic_normalize(text: str) -> list:
         (r'\bdesc\b', 'describe'),
         (r'\bmgmt\b', 'management'),
         (r'\barch\b', 'architecture'),
+        (r'\bsbi\b', 'sbi sprint backlog item'),
+        (r'\bpbi\b', 'pbi product backlog item'),
+        (r'\ber\b', 'er entity relationship'),
+        (r'\bstm\b', 'stm source to target mapping'),
+        (r'\bdwh\b', 'dwh data warehouse'),
     ]
     for pattern, replacement in expansions:
         expanded = re.sub(pattern, replacement, expanded)
@@ -266,12 +271,12 @@ class QASystem:
         self.mlx_generator = None
         self.default_engine = default_engine
         
-        # Load local MLX model if adapters exist
-        if os.path.exists("adapters/adapters.safetensors"):
-            try:
-                self.mlx_generator = MLXLocalGenerator()
-            except Exception as e:
-                print(f"Could not load MLX model: {e}")
+        # Load local MLX model
+        try:
+            self.mlx_generator = MLXLocalGenerator()
+        except Exception as e:
+            print(f"Could not load MLX model: {e}")
+            self.mlx_generator = None
                 
         self.response_cache = {}
 
