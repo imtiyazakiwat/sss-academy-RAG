@@ -103,23 +103,22 @@ def ask_question_stream(req: QueryRequest):
     top_score = retrieved[0]["score"] if retrieved else 0.0
     retrieve_ms = (time.time() - t0) * 1000
 
-    gen_result = qa_system.generator.generate(q, retrieved, top_score)
+    # Classify the request BEFORE generating (fast confidence/lexical gate).
+    routed = qa_system.generator.route(q, retrieved, top_score)
 
-    # Route through the quick path (unsupported/extracted/LLM-fallbacks) that
-    # does NOT stream — send as a single packet.
-    if gen_result["mode"] != "generated" or not (
-        qa_system.llm and qa_system.llm.is_loaded
-    ):
+    # Quick path (unsupported / extracted / LLM unavailable): no LLM tokens,
+    # send a single packet immediately.
+    if routed["mode"] != "generated":
         payload = {
             "type": "complete",
             "question": q,
-            "answer": gen_result["answer"],
-            "mode": gen_result["mode"],
+            "answer": routed["answer"],
+            "mode": routed["mode"],
             "confidence": round(top_score, 4),
             "evidence": retrieved,
             "retrieval_ms": round(retrieve_ms, 2),
-            "generation_ms": round(gen_result.get("generation_ms", 0), 2),
-            "ttft_ms": round(gen_result.get("ttft_ms", 0), 2),
+            "generation_ms": 0.0,
+            "ttft_ms": 0.0,
             "breakdown": breakdown,
             "total_ms": round((time.time() - t0) * 1000, 2),
         }
@@ -127,7 +126,10 @@ def ask_question_stream(req: QueryRequest):
             yield f"data: {json.dumps(payload)}\n\n".encode("utf-8")
         return StreamingResponse(single(), media_type="text/event-stream")
 
-    # 2. Otherwise stream the LLM tokens over SSE
+    # 2. Real streaming: retrieve + route already done above, now stream the
+    #    LLM tokens live (no blocking pre-generation of the full answer).
+    participants = qa_system.llm.generate(q, retrieved, stream=True)
+
     def stream_tokens():
         meta = {
             "type": "meta",
@@ -137,25 +139,23 @@ def ask_question_stream(req: QueryRequest):
             "evidence": retrieved,
             "retrieval_ms": round(retrieve_ms, 2),
             "breakdown": breakdown,
-            "ttft_ms": round((time.time() - t0) * 1000, 2),
         }
         yield f"data: {json.dumps(meta)}\n\n".encode("utf-8")
 
-        gen = qa_system.llm.generate(q, retrieved, stream=True)
         full = []
-        first_ttft = None
-        for tok, ttft in gen:
+        first_ttft_ms = None
+        for tok, ttft in participants:
             if tok == "":
                 break
-            if first_ttft is None and ttft:
-                first_ttft = ttft
+            if first_ttft_ms is None:
+                first_ttft_ms = ttft
             full.append(tok)
             yield f"data: {json.dumps({'type': 'token', 'text': tok})}\n\n".encode("utf-8")
 
         done = {
             "type": "done",
             "answer": "".join(full),
-            "ttft_ms": round(first_ttft or 0, 2),
+            "ttft_ms": round(first_ttft_ms or 0, 2),
             "generation_ms": round((time.time() - t0) * 1000, 2),
             "total_ms": round((time.time() - t0) * 1000, 2),
         }

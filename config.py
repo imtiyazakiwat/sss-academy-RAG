@@ -30,8 +30,17 @@ EMBEDDING_DIM = 384
 # ---------------------------------------------------------------------------
 LOCAL_MODEL = "mlx-community/Qwen2.5-3B-Instruct-4bit"
 # LOCAL_MODEL = "mlx-community/Qwen2.5-7B-Instruct-4bit"  # 16GB+ RAM
-MAX_TOKENS = 512
+MAX_TOKENS = 200
 TEMPERATURE = 0.2
+
+# Context budget fed to the LLM. Prefill (first-token) time scales with this,
+# so keep it small for a sub-second TTFT on local MPS. We feed only the top
+# chunk(s), truncated, which is enough for grounded short answers.
+#   ~1400 chars  -> ~0.9s TTFT
+#   ~1900 chars  -> ~1.3s TTFT
+#   ~3100 chars  -> ~3.2s TTFT
+MAX_CONTEXT_CHARS = 1500
+TOP_K_CONTEXT = 2
 
 # ---------------------------------------------------------------------------
 # Retrieval Settings
@@ -44,11 +53,18 @@ TOP_K_FINAL = 5
 HIGH_CONFIDENCE = 1.05  # >= 1.05 -> near-verbatim match, return chunk directly
 LOW_CONFIDENCE = 0.75    # <  0.75 -> "not available in knowledge base"
 
-# Lexical relevance gate: a match counts as supported only if the raw
-# vector similarity is strong, OR there is substantial keyword overlap.
-# (Genuine on-topic chunks here all have vector >= ~0.71; off-topic false
-#  positives sit lower, so this cleanly rejects them without an LLM call.)
-MIN_VECTOR_FOR_WEAK_LEXICAL = 0.65
+# Lexical relevance gate: a request is "supported" only if the top chunk has
+# a STRONG keyword overlap (lexical >= MIN_LEXICAL_FOR_WEAK_VECTOR), OR a very
+# strong pure-vector similarity (vector >= MIN_VECTOR_FOR_WEAK_LEXICAL).
+#
+# Calibration on this PDF knowledge base:
+#   - Genuine on-topic matches: vector >= ~0.80 OR lexical >= ~0.60
+#   - Borderline false positives ("Power BI/Tableau", "indexing",
+#     "Data Lake vs Warehouse"): vector only ~0.65-0.78 with weak lexical,
+#     and the LLM tends to hallucinate outside-knowledge answers for these.
+# So the vector path is raised so such off-scope questions are rejected fast
+# (no LLM call) instead of producing an ungrounded answer.
+MIN_VECTOR_FOR_WEAK_LEXICAL = 0.78
 MIN_LEXICAL_FOR_WEAK_VECTOR = 0.60
 
 # ---------------------------------------------------------------------------

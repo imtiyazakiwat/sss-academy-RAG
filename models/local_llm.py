@@ -10,19 +10,24 @@ import time
 from mlx_lm import load, stream_generate, generate
 from mlx_lm.sample_utils import make_sampler
 
-from config import LOCAL_MODEL, MAX_TOKENS, TEMPERATURE
+from config import (
+    LOCAL_MODEL,
+    MAX_TOKENS,
+    MAX_CONTEXT_CHARS,
+    TEMPERATURE,
+    TOP_K_CONTEXT,
+)
 
 # Strict grounding prompt template
-SYSTEM_PROMPT = """You are an ETL interview assistant trained only on the SSS Academy classroom notes provided in CONTEXT.
+SYSTEM_PROMPT = """You are an ETL interview assistant that answers ONLY from the SSS Academy classroom notes provided in CONTEXT.
 
-STRICT RULES:
-1. Answer ONLY from the CONTEXT below. Do NOT use outside knowledge or generic internet definitions.
-2. Reuse the EXACT technical terminology, SQL syntax, and specific test-case steps from the CONTEXT (e.g. surrogate key, ETL Effective Start Date, Active Row Flag='A'/'H', Version Number, MINUS queries).
-3. If the CONTEXT describes a concrete procedure (e.g. SCD Type 2 incremental load), give that procedure directly rather than a generic summary.
-4. Detect the underlying ETL concept of the question (e.g. 'address changes' -> SCD Type 2) and answer using the matching CONTEXT section.
-5. Never invent ETL concepts. If the CONTEXT does not answer the question, reply EXACTLY:
+HARD RULES:
+1. Answer SOLELY from CONTEXT. Never use outside knowledge, general knowledge, or internet definitions.
+2. This is a hard requirement: if CONTEXT does NOT contain enough to answer the question, reply EXACTLY and ONLY:
    "This information is not available in the knowledge base."
-6. Keep it concise: a short direct answer using clear bullets.
+   Do NOT attempt to guess, generalize, or answer from prior knowledge when the specific information is missing.
+3. Reuse the EXACT technical terminology, SQL syntax, and test-case steps that appear verbatim in CONTEXT (e.g. surrogate key, ETL Effective Start Date, Active Row Flag='A'/'H', Version Number, MINUS queries).
+4. Give a short, direct answer with clear bullets only. Do not embellish or add fluff.
 
 CONTEXT:
 {context}
@@ -53,14 +58,23 @@ class LocalLLM:
             self.is_loaded = False
 
     def _build_prompt(self, question, context_chunks):
-        """Build the grounded generation prompt."""
+        """Build the grounded generation prompt with a bounded context budget.
+
+        Only the top chunk(s), truncated, are injected so that prefill (first
+        token) stays fast on local MPS hardware.
+        """
         context_blocks = []
-        for c in context_chunks:
+        budget = MAX_CONTEXT_CHARS
+        for c in (context_chunks or [])[:TOP_K_CONTEXT]:
+            if budget <= 0:
+                break
             topic = f"[{c['topic']}] " if c.get("topic") else ""
             page = f"(Page {c['page']})" if c.get("page") else ""
-            context_blocks.append(f"{topic}{page}\n{c['content']}")
-        context_str = "\n\n---\n\n".join(context_blocks)
+            content = (c.get("content") or "")[:budget]
+            context_blocks.append(f"{topic}{page}\n{content}")
+            budget -= len(content)
 
+        context_str = "\n\n---\n\n".join(context_blocks)
         system = SYSTEM_PROMPT.format(context=context_str)
         messages = [
             {"role": "system", "content": system},
@@ -86,18 +100,21 @@ class LocalLLM:
         if stream:
             def gen():
                 first_token_time = None
-                full = []
                 for resp in stream_generate(
                     self.model, self.tokenizer,
                     prompt=prompt,
                     **gen_kwargs,
                 ):
+                    # Skip empty tokens: MLX emits occasional empty pieces
+                    # mid-stream (e.g. whitespace). Breaking on "" would
+                    # truncate the answer.
+                    if not resp.text:
+                        continue
                     if first_token_time is None:
                         first_token_time = (time.time() - t0) * 1000
-                    full.append(resp.text)
                     yield resp.text, first_token_time
                 total_ms = (time.time() - t0) * 1000
-                yield "", total_ms  # final marker
+                yield "", total_ms  # true completion sentinel
             return gen()
 
         # Non-streaming
