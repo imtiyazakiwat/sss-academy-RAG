@@ -496,11 +496,129 @@ textarea#questionInput:focus {
 }
 
 .answer-body {
-  font-size: 0.95rem;
+  font-size: 0.98rem;
   color: #e2e8f0;
-  white-space: pre-wrap;
+  line-height: 1.75;
   word-break: break-word;
-  line-height: 1.7;
+}
+
+.answer-body p {
+  margin-bottom: 0.85rem;
+}
+
+.answer-body p:last-child {
+  margin-bottom: 0;
+}
+
+.answer-body strong, 
+.answer-body b {
+  color: #ffffff;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.answer-body em, 
+.answer-body i {
+  color: #cbd5e1;
+  font-style: italic;
+}
+
+.answer-body ul, 
+.answer-body ol {
+  margin: 0.75rem 0 0.85rem 1.4rem;
+  padding: 0;
+}
+
+.answer-body ul {
+  list-style-type: disc;
+}
+
+.answer-body ol {
+  list-style-type: decimal;
+}
+
+.answer-body li {
+  margin-bottom: 0.45rem;
+  padding-left: 0.25rem;
+  line-height: 1.65;
+}
+
+.answer-body li::marker {
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+
+.answer-body h3, 
+.answer-body h4, 
+.answer-body h5 {
+  color: #ffffff;
+  font-weight: 700;
+  margin: 1.25rem 0 0.5rem 0;
+  line-height: 1.4;
+}
+
+.answer-body h3 { font-size: 1.15rem; }
+.answer-body h4 { font-size: 1.05rem; }
+
+.answer-body code {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.88em;
+  background: rgba(15, 23, 42, 0.8);
+  color: #38bdf8;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid rgba(56, 189, 248, 0.2);
+}
+
+.answer-body pre {
+  background: #090d16;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 0.9rem 1.1rem;
+  margin: 0.85rem 0;
+  overflow-x: auto;
+}
+
+.answer-body pre code {
+  background: transparent;
+  padding: 0;
+  border: none;
+  color: #f1f5f9;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.answer-body blockquote {
+  border-left: 3px solid var(--accent-purple);
+  background: rgba(139, 92, 246, 0.05);
+  margin: 0.85rem 0;
+  padding: 0.6rem 1rem;
+  border-radius: 0 6px 6px 0;
+  color: #cbd5e1;
+}
+
+.answer-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.9rem 0;
+  font-size: 0.9rem;
+}
+
+.answer-body th, 
+.answer-body td {
+  padding: 0.6rem 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: left;
+}
+
+.answer-body th {
+  background: rgba(255, 255, 255, 0.06);
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.answer-body td {
+  background: rgba(0, 0, 0, 0.2);
 }
 
 /* Context Drawer */

@@ -122,7 +122,7 @@ document.addEventListener("DOMContentLoaded", () => {
     answerBody.innerHTML = `
       <div style="display: flex; align-items: center; gap: 8px; color: #94a3b8;">
         <span class="status-dot" style="animation: pulse 1.2s infinite;"></span>
-        <span>Retrieving from notebook index & generating via ${currentEngine === 'mlx' ? 'Apple M4 Fine-Tuned LoRA' : 'Groq LPU'}...</span>
+        <span>Retrieving from notebook index & generating via ${currentEngine === 'mlx' ? 'Qwen 2.5 LoRA (Apple Silicon MLX)' : 'Groq LPU'}...</span>
       </div>
     `;
 
@@ -200,13 +200,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 latencyValue.innerText = `${ttft} ms (TTFT)`;
               }
               streamedText += data.text;
-              answerBody.innerText = streamedText;
+              answerBody.innerHTML = formatMarkdown(streamedText);
             }
 
             if (data.type === "done") {
               const totalElapsed = (performance.now() - startTime).toFixed(0);
               latencyValue.innerText = `${totalElapsed} ms`;
-              answerBody.innerText = streamedText;
+              answerBody.innerHTML = formatMarkdown(streamedText);
             }
           } catch (e) {
             console.error("Error parsing stream chunk:", e);
@@ -215,7 +215,7 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       if (streamedText) {
-        answerBody.innerText = streamedText;
+        answerBody.innerHTML = formatMarkdown(streamedText);
       }
     } catch (err) {
       console.error(err);
@@ -234,7 +234,7 @@ document.addEventListener("DOMContentLoaded", () => {
       modeBadge.innerText = "⚡ Exact Match (Notebook)";
     } else if (data.engine === "mlx") {
       modeBadge.classList.add("badge-generated");
-      modeBadge.innerText = "🍎 Apple M4 (Fine-Tuned MLX)";
+      modeBadge.innerText = "🍎 Qwen 2.5 (LoRA Fine-Tuned)";
     } else {
       modeBadge.classList.add("badge-generated");
       modeBadge.innerText = "⚡ Groq LPU (Qwen 27B)";
@@ -252,7 +252,7 @@ document.addEventListener("DOMContentLoaded", () => {
     topicTag.innerText = data.topic || "ETL Testing";
 
     // Format & Render Answer
-    answerBody.innerText = data.answer;
+    answerBody.innerHTML = formatMarkdown(data.answer);
 
     // Render Matched Context Drawer
     renderTopMatches(data.top_matches || []);
@@ -325,6 +325,70 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       chipsContainer.appendChild(chip);
     });
+  }
+
+  function formatMarkdown(text) {
+    if (!text) return "";
+
+    // 1. If marked.js is available from CDN, use it
+    if (window.marked && typeof window.marked.parse === "function") {
+      try {
+        return window.marked.parse(text, { breaks: true, gfm: true });
+      } catch (e) {
+        console.warn("marked.parse error, using fallback:", e);
+      }
+    }
+
+    // 2. Comprehensive built-in fallback parser
+    let html = escapeHtml(text);
+
+    // Code blocks ``` ... ```
+    html = html.replace(/```([a-z]*)\n([\s\S]*?)```/g, (match, lang, code) => {
+      return `<pre><code>${code.trim()}</code></pre>`;
+    });
+
+    // Headers: ###, ##, #
+    html = html.replace(/^###\s+(.*$)/gim, '<h4>$1</h4>');
+    html = html.replace(/^##\s+(.*$)/gim, '<h3>$1</h3>');
+    html = html.replace(/^#\s+(.*$)/gim, '<h3>$1</h3>');
+
+    // Bold: **text** or __text__ -> <strong>text</strong>
+    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    html = html.replace(/__(.*?)__/g, '<strong>$1</strong>');
+
+    // Italic: *text* or _text_ -> <em>text</em>
+    html = html.replace(/\*([^\*\n]+)\*/g, '<em>$1</em>');
+    html = html.replace(/_([^_\n]+)_/g, '<em>$1</em>');
+
+    // Inline code: `code` -> <code>code</code>
+    html = html.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+
+    // Unordered lists: • item, - item, * item -> <li>item</li>
+    html = html.replace(/^[\s]*[•\-\*]\s+(.*$)/gim, '<li>$1</li>');
+
+    // Ordered lists: 1. item -> <li>item</li>
+    html = html.replace(/^[\s]*(\d+)\.\s+(.*$)/gim, '<li value="$1">$2</li>');
+
+    // Group lists into <ol> or <ul>
+    html = html.replace(/(<li value="\d+">.*?<\/li>(\n| )*)+/gis, (match) => {
+      return `<ol>${match}</ol>`;
+    });
+    html = html.replace(/(<li>.*?<\/li>(\n| )*)+/gis, (match) => {
+      return `<ul>${match}</ul>`;
+    });
+
+    // Paragraphs
+    const blocks = html.split(/\n{2,}/);
+    html = blocks.map(block => {
+      const trimmed = block.trim();
+      if (!trimmed) return "";
+      if (trimmed.startsWith('<ol') || trimmed.startsWith('<ul') || trimmed.startsWith('<pre') || trimmed.startsWith('<h3') || trimmed.startsWith('<h4')) {
+        return trimmed;
+      }
+      return `<p>${trimmed.replace(/\n/g, '<br>')}</p>`;
+    }).filter(Boolean).join('');
+
+    return html;
   }
 
   function escapeHtml(str) {
