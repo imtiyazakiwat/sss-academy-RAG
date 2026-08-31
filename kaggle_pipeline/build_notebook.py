@@ -1,5 +1,12 @@
 """
-Script to create the complete standalone Kaggle Jupyter Notebook
+Script to create the complete standalone Kaggle Jupyter Notebook.
+
+Targets: Kaggle Tesla T4 GPU (sm_75), Python 3.12, PyTorch 2.x
+Fixes applied:
+  - Uninstalls incompatible pre-installed torchao before importing transformers
+  - Uses adamw_torch optimizer (no bitsandbytes dependency)
+  - Uses FP16 LoRA (no 4-bit quantization, no bitsandbytes)
+  - Requests T4 via kernel-metadata.json accelerator field
 """
 
 import nbformat as nbf
@@ -16,24 +23,38 @@ def create_kaggle_notebook():
 
     # Markdown Header
     cells.append(nbf.v4.new_markdown_cell("""# 🚀 ETL Test Engineer LLM Fine-Tuning on Kaggle GPU
-### High-Accuracy Model Training on Cloud GPU (Tesla T4 / P100)
-- **Base Model**: `Qwen/Qwen2.5-Coder-7B-Instruct`
-- **Fine-Tuning Paradigm**: 4-bit QLoRA with Hugging Face `peft` + `trl` (SFTTrainer)
+### High-Accuracy Model Training on Cloud Tesla T4 GPU
+- **Base Model**: `Qwen/Qwen2.5-Coder-3B-Instruct`
+- **Fine-Tuning**: FP16 LoRA with Hugging Face `peft` + `trl` (SFTTrainer)
 - **Domain**: Grounded in HCL Technologies / Menards Retail DWH ETL Interview Experience
 """))
 
-    # Cell 1: Pip installs
+    # Cell 1: Fix environment + install deps
     cells.append(nbf.v4.new_code_cell("""%%capture
-# Install standard HuggingFace fine-tuning stack
+# CRITICAL: Remove pre-installed torchao which conflicts with transformers
+# Kaggle ships torchao 0.10.0 but transformers requires >= 0.16.0
+!pip uninstall -y torchao
+
+# Install the fine-tuning stack (no bitsandbytes needed for FP16 LoRA)
 !pip install -q "transformers>=4.45.0" "peft>=0.13.0" "trl>=0.11.0" "accelerate>=0.34.0" datasets
 """))
 
-    # Cell 2: Load Model & Tokenizer with Float16 (Universal P100 & T4 Compatibility)
+    # Cell 2: Verify GPU + environment
     cells.append(nbf.v4.new_code_cell("""import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+print(f"PyTorch: {torch.__version__}")
+print(f"CUDA Available: {torch.cuda.is_available()}")
+if torch.cuda.is_available():
+    print(f"GPU: {torch.cuda.get_device_name(0)}")
+    print(f"Compute Capability: {torch.cuda.get_device_capability(0)}")
+    print(f"VRAM: {torch.cuda.get_device_properties(0).total_mem / 1e9:.1f} GB")
+else:
+    raise RuntimeError("No GPU detected! Check Kaggle accelerator settings.")
+"""))
+
+    # Cell 3: Load Model & Tokenizer in FP16
+    cells.append(nbf.v4.new_code_cell("""from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import LoraConfig, get_peft_model
 
-# 3B Model in native Float16 fits completely in 16GB VRAM without needing bitsandbytes
 model_id = "Qwen/Qwen2.5-Coder-3B-Instruct"
 
 tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
@@ -46,7 +67,7 @@ model = AutoModelForCausalLM.from_pretrained(
     trust_remote_code=True
 )
 
-# Apply LoRA on all attention and MLP projection weights
+# LoRA config targeting all attention + MLP projections
 lora_config = LoraConfig(
     r=16,
     lora_alpha=32,
@@ -58,10 +79,10 @@ lora_config = LoraConfig(
 
 model = get_peft_model(model, lora_config)
 model.print_trainable_parameters()
-print("✅ Qwen2.5-Coder-3B loaded in FP16 with LoRA adapters (Universal P100/T4 support)!")
+print("✅ Model loaded in FP16 with LoRA adapters!")
 """))
 
-    # Cell 3: Dataset Preparation
+    # Cell 4: Dataset Preparation
     cells.append(nbf.v4.new_code_cell(f"""import json
 from datasets import Dataset
 
@@ -78,7 +99,7 @@ dataset = dataset.map(formatting_prompts_func, batched = True)
 print(f"✅ Formatted {{len(dataset)}} conversational training samples!")
 """))
 
-    # Cell 4: Train with SFTTrainer
+    # Cell 5: Train with SFTTrainer
     cells.append(nbf.v4.new_code_cell("""from trl import SFTTrainer
 from transformers import TrainingArguments
 
@@ -91,10 +112,11 @@ training_args = TrainingArguments(
     learning_rate=2e-4,
     fp16=True,
     logging_steps=10,
-    optim="paged_adamw_8bit",
+    optim="adamw_torch",
     lr_scheduler_type="cosine",
     save_strategy="no",
-    report_to="none"
+    report_to="none",
+    gradient_checkpointing=True
 )
 
 trainer = SFTTrainer(
@@ -110,7 +132,7 @@ trainer.train()
 print("🎉 Fine-tuning completed successfully!")
 """))
 
-    # Cell 5: Test & Verify Accuracy
+    # Cell 6: Test & Verify Accuracy
     cells.append(nbf.v4.new_code_cell("""# 🧪 Run Live Inference Test (ER vs Dimensional Modeling)
 prompt_text = \"\"\"<|im_start|>system
 You are an experienced Senior ETL Test Engineer in a technical interview. You have 4.2 years of experience at HCL Technologies working on the Menards retail data warehouse project. Speak naturally, authoritatively, and concisely in the 1st person. Ground your answers in real tools (Oracle, Informatica, TOAD, HP ALM, Unix) and practical SQL validation techniques (MINUS queries, duplicate checks, SCD2 history tracking, count reconciliation). Never use robotic bullet lists or markdown headers.<|im_end|>
@@ -127,11 +149,11 @@ print("\\n--- Model Output ---")
 _ = model.generate(**inputs, streamer=streamer, max_new_tokens=400, temperature=0.7)
 """))
 
-    # Cell 6: Save and Export
+    # Cell 7: Save and Export
     cells.append(nbf.v4.new_code_cell("""# 💾 Save LoRA Adapter to disk
-model.save_pretrained("etl_interview_qwen7b_lora")
-tokenizer.save_pretrained("etl_interview_qwen7b_lora")
-print("✅ Saved LoRA adapter to etl_interview_qwen7b_lora/!")
+model.save_pretrained("etl_interview_qwen3b_lora")
+tokenizer.save_pretrained("etl_interview_qwen3b_lora")
+print("✅ Saved LoRA adapter to etl_interview_qwen3b_lora/!")
 """))
 
     nb.cells = cells
@@ -158,7 +180,7 @@ print("✅ Saved LoRA adapter to etl_interview_qwen7b_lora/!")
     with open("kaggle_pipeline/ETL_Interview_FineTuning.ipynb", "w", encoding="utf-8") as f:
         nbf.write(nb, f)
 
-    print("Successfully created kaggle_pipeline/ETL_Interview_FineTuning.ipynb with kernelspec metadata")
+    print("Successfully created kaggle_pipeline/ETL_Interview_FineTuning.ipynb")
 
 if __name__ == "__main__":
     create_kaggle_notebook()
