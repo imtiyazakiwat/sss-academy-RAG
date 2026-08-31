@@ -1,12 +1,9 @@
 """
 Script to create the complete standalone Kaggle Jupyter Notebook.
 
-Targets: Kaggle Tesla T4 GPU (sm_75), Python 3.12, PyTorch 2.x
-Fixes applied:
-  - Uninstalls incompatible pre-installed torchao before importing transformers
-  - Uses adamw_torch optimizer (no bitsandbytes dependency)
-  - Uses FP16 LoRA (no 4-bit quantization, no bitsandbytes)
-  - Requests T4 via kernel-metadata.json accelerator field
+Targets: Kaggle Tesla P100 GPU (sm_60), Python 3.12
+Key fix: Kaggle's pre-installed PyTorch 2.10+ dropped P100 support.
+We downgrade to PyTorch 2.2.0+cu118 which still has sm_60 kernels.
 """
 
 import nbformat as nbf
@@ -15,7 +12,6 @@ import json
 def create_kaggle_notebook():
     nb = nbf.v4.new_notebook()
 
-    # Load dataset lines to embed in notebook for 100% self-contained execution
     with open("kaggle_pipeline/train_data.jsonl", "r", encoding="utf-8") as f:
         dataset_lines = [json.loads(line) for line in f]
 
@@ -23,32 +19,41 @@ def create_kaggle_notebook():
 
     # Markdown Header
     cells.append(nbf.v4.new_markdown_cell("""# 🚀 ETL Test Engineer LLM Fine-Tuning on Kaggle GPU
-### High-Accuracy Model Training on Cloud Tesla T4 GPU
+### Fine-Tuning Qwen2.5-Coder-3B on Tesla P100 with LoRA
 - **Base Model**: `Qwen/Qwen2.5-Coder-3B-Instruct`
-- **Fine-Tuning**: FP16 LoRA with Hugging Face `peft` + `trl` (SFTTrainer)
-- **Domain**: Grounded in HCL Technologies / Menards Retail DWH ETL Interview Experience
+- **Method**: FP16 LoRA (no quantization needed for 3B model on 16GB P100)
+- **Domain**: HCL Technologies / Menards Retail DWH ETL Interview
 """))
 
-    # Cell 1: Fix environment + install deps
+    # Cell 1: Downgrade PyTorch to support P100 (sm_60) + install deps
     cells.append(nbf.v4.new_code_cell("""%%capture
-# CRITICAL: Remove pre-installed torchao which conflicts with transformers
-# Kaggle ships torchao 0.10.0 but transformers requires >= 0.16.0
-!pip uninstall -y torchao
+# ============================================================
+# STEP 1: Fix GPU compatibility
+# Kaggle's default PyTorch 2.10+ dropped P100 (sm_60) support.
+# We must downgrade to PyTorch 2.2.0 with CUDA 11.8 which
+# still includes sm_60 kernels for the Tesla P100.
+# ============================================================
+!pip uninstall -y torch torchvision torchaudio torchao
+!pip install torch==2.2.0+cu118 torchvision==0.17.0+cu118 torchaudio==2.2.0+cu118 --index-url https://download.pytorch.org/whl/cu118
 
-# Install the fine-tuning stack (no bitsandbytes needed for FP16 LoRA)
-!pip install -q "transformers>=4.45.0" "peft>=0.13.0" "trl>=0.11.0" "accelerate>=0.34.0" datasets
+# STEP 2: Install fine-tuning libraries (pinned for torch 2.2 compat)
+!pip install -q "transformers==4.44.2" "peft==0.13.2" "trl==0.11.4" "accelerate==0.34.2" "datasets==3.0.1"
 """))
 
-    # Cell 2: Verify GPU + environment
+    # Cell 2: Verify GPU environment
     cells.append(nbf.v4.new_code_cell("""import torch
 print(f"PyTorch: {torch.__version__}")
 print(f"CUDA Available: {torch.cuda.is_available()}")
+print(f"Supported Archs: {torch.cuda.get_arch_list()}")
 if torch.cuda.is_available():
-    print(f"GPU: {torch.cuda.get_device_name(0)}")
-    print(f"Compute Capability: {torch.cuda.get_device_capability(0)}")
-    print(f"VRAM: {torch.cuda.get_device_properties(0).total_mem / 1e9:.1f} GB")
+    gpu_name = torch.cuda.get_device_name(0)
+    cap = torch.cuda.get_device_capability(0)
+    print(f"GPU: {gpu_name} (sm_{cap[0]}{cap[1]})")
+    print(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+    assert "sm_60" in torch.cuda.get_arch_list(), "ERROR: sm_60 not in supported archs!"
+    print("✅ P100 (sm_60) is supported by this PyTorch build!")
 else:
-    raise RuntimeError("No GPU detected! Check Kaggle accelerator settings.")
+    raise RuntimeError("No GPU detected!")
 """))
 
     # Cell 3: Load Model & Tokenizer in FP16
@@ -67,7 +72,6 @@ model = AutoModelForCausalLM.from_pretrained(
     trust_remote_code=True
 )
 
-# LoRA config targeting all attention + MLP projections
 lora_config = LoraConfig(
     r=16,
     lora_alpha=32,
@@ -79,14 +83,13 @@ lora_config = LoraConfig(
 
 model = get_peft_model(model, lora_config)
 model.print_trainable_parameters()
-print("✅ Model loaded in FP16 with LoRA adapters!")
+print("✅ Model loaded with LoRA adapters!")
 """))
 
     # Cell 4: Dataset Preparation
     cells.append(nbf.v4.new_code_cell(f"""import json
 from datasets import Dataset
 
-# Embedded gold-standard training data ({len(dataset_lines)} samples)
 raw_data = {json.dumps(dataset_lines, ensure_ascii=False)}
 
 def formatting_prompts_func(examples):
@@ -95,11 +98,11 @@ def formatting_prompts_func(examples):
     return {{ "text" : texts }}
 
 dataset = Dataset.from_list(raw_data)
-dataset = dataset.map(formatting_prompts_func, batched = True)
-print(f"✅ Formatted {{len(dataset)}} conversational training samples!")
+dataset = dataset.map(formatting_prompts_func, batched=True)
+print(f"✅ Formatted {{len(dataset)}} training samples!")
 """))
 
-    # Cell 5: Train with SFTTrainer
+    # Cell 5: Train
     cells.append(nbf.v4.new_code_cell("""from trl import SFTTrainer
 from transformers import TrainingArguments
 
@@ -127,14 +130,13 @@ trainer = SFTTrainer(
     args=training_args
 )
 
-print("🚀 Starting fine-tuning on Cloud GPU...")
+print("🚀 Starting fine-tuning...")
 trainer.train()
-print("🎉 Fine-tuning completed successfully!")
+print("🎉 Fine-tuning complete!")
 """))
 
-    # Cell 6: Test & Verify Accuracy
-    cells.append(nbf.v4.new_code_cell("""# 🧪 Run Live Inference Test (ER vs Dimensional Modeling)
-prompt_text = \"\"\"<|im_start|>system
+    # Cell 6: Test inference
+    cells.append(nbf.v4.new_code_cell("""prompt_text = \"\"\"<|im_start|>system
 You are an experienced Senior ETL Test Engineer in a technical interview. You have 4.2 years of experience at HCL Technologies working on the Menards retail data warehouse project. Speak naturally, authoritatively, and concisely in the 1st person. Ground your answers in real tools (Oracle, Informatica, TOAD, HP ALM, Unix) and practical SQL validation techniques (MINUS queries, duplicate checks, SCD2 history tracking, count reconciliation). Never use robotic bullet lists or markdown headers.<|im_end|>
 <|im_start|>user
 What is the difference between ER modeling and Dimensional modeling?<|im_end|>
@@ -146,14 +148,13 @@ inputs = tokenizer(prompt_text, return_tensors="pt").to("cuda")
 from transformers import TextStreamer
 streamer = TextStreamer(tokenizer, skip_prompt=True)
 print("\\n--- Model Output ---")
-_ = model.generate(**inputs, streamer=streamer, max_new_tokens=400, temperature=0.7)
+_ = model.generate(**inputs, streamer=streamer, max_new_tokens=400, temperature=0.7, do_sample=True)
 """))
 
-    # Cell 7: Save and Export
-    cells.append(nbf.v4.new_code_cell("""# 💾 Save LoRA Adapter to disk
-model.save_pretrained("etl_interview_qwen3b_lora")
-tokenizer.save_pretrained("etl_interview_qwen3b_lora")
-print("✅ Saved LoRA adapter to etl_interview_qwen3b_lora/!")
+    # Cell 7: Save
+    cells.append(nbf.v4.new_code_cell("""model.save_pretrained("etl_interview_lora")
+tokenizer.save_pretrained("etl_interview_lora")
+print("✅ LoRA adapter saved!")
 """))
 
     nb.cells = cells
@@ -164,10 +165,7 @@ print("✅ Saved LoRA adapter to etl_interview_qwen3b_lora/!")
             "name": "python3"
         },
         "language_info": {
-            "codemirror_mode": {
-                "name": "ipython",
-                "version": 3
-            },
+            "codemirror_mode": {"name": "ipython", "version": 3},
             "file_extension": ".py",
             "mimetype": "text/x-python",
             "name": "python",
@@ -180,7 +178,7 @@ print("✅ Saved LoRA adapter to etl_interview_qwen3b_lora/!")
     with open("kaggle_pipeline/ETL_Interview_FineTuning.ipynb", "w", encoding="utf-8") as f:
         nbf.write(nb, f)
 
-    print("Successfully created kaggle_pipeline/ETL_Interview_FineTuning.ipynb")
+    print("✅ Notebook created successfully.")
 
 if __name__ == "__main__":
     create_kaggle_notebook()
