@@ -30,7 +30,7 @@ EMBEDDING_DIM = 384
 # ---------------------------------------------------------------------------
 LOCAL_MODEL = "mlx-community/Qwen2.5-3B-Instruct-4bit"
 # LOCAL_MODEL = "mlx-community/Qwen2.5-7B-Instruct-4bit"  # 16GB+ RAM
-MAX_TOKENS = 200
+MAX_TOKENS = 512
 TEMPERATURE = 0.2
 
 # Context budget fed to the LLM. Prefill (first-token) time scales with this,

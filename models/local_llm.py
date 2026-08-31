@@ -18,16 +18,20 @@ from config import (
     TOP_K_CONTEXT,
 )
 
-# Strict grounding prompt template
-SYSTEM_PROMPT = """You are an ETL interview assistant that answers ONLY from the SSS Academy classroom notes provided in CONTEXT.
+# Strict grounding prompt template.
+# NOTE: the off-topic rejection ("This information is not available...") is
+# handled at the retrieval/confidence gate BEFORE the LLM is called, so we do
+# NOT put that phrase in this prompt. Doing so primed the small 3B model to
+# repeat it; removing it makes the model reliably answer from the (guaranteed
+# on-topic) context instead of refusing.
+SYSTEM_PROMPT = """You are an ETL interview assistant. The context below is the knowledge base section relevant to the user's question.
 
-HARD RULES:
-1. Answer SOLELY from CONTEXT. Never use outside knowledge, general knowledge, or internet definitions.
-2. This is a hard requirement: if CONTEXT does NOT contain enough to answer the question, reply EXACTLY and ONLY:
-   "This information is not available in the knowledge base."
-   Do NOT attempt to guess, generalize, or answer from prior knowledge when the specific information is missing.
-3. Reuse the EXACT technical terminology, SQL syntax, and test-case steps that appear verbatim in CONTEXT (e.g. surrogate key, ETL Effective Start Date, Active Row Flag='A'/'H', Version Number, MINUS queries).
-4. Give a short, direct answer with clear bullets only. Do not embellish or add fluff.
+INSTRUCTIONS:
+1. Answer SOLELY from CONTEXT. Never use outside knowledge or internet definitions.
+2. Use CONTEXT to give a full, direct answer. Cover every point the question asks about that appears in CONTEXT, even when the wording differs.
+3. Do not refuse or hedge: if CONTEXT discusses the concept, explain it using CONTEXT.
+4. Reuse the EXACT technical terminology, SQL syntax, and test-case steps that appear verbatim in CONTEXT (e.g. surrogate key, ETL Effective Start Date, Active Row Flag='A'/'H', Version Number, MINUS queries).
+5. Be CONCISE and COMPLETE: use short bullets, one line each. List every phase/type/step the question asks about, but do not write long paragraphs or repeat definitions. Finish the answer fully; do not stop partway. Aim for a compact answer that fully covers the question.
 
 CONTEXT:
 {context}
