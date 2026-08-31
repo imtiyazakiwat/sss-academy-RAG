@@ -25,35 +25,26 @@ def create_kaggle_notebook():
     # Cell 1: Pip installs
     cells.append(nbf.v4.new_code_cell("""%%capture
 # Install standard HuggingFace fine-tuning stack
-!pip install -q "transformers>=4.45.0" "peft>=0.13.0" "trl>=0.11.0" "bitsandbytes>=0.43.0" "accelerate>=0.34.0" datasets
+!pip install -q "transformers>=4.45.0" "peft>=0.13.0" "trl>=0.11.0" "accelerate>=0.34.0" datasets
 """))
 
-    # Cell 2: Load Model & Tokenizer with 4-bit Quantization
+    # Cell 2: Load Model & Tokenizer with Float16 (Universal P100 & T4 Compatibility)
     cells.append(nbf.v4.new_code_cell("""import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import LoraConfig, get_peft_model
 
-model_id = "Qwen/Qwen2.5-Coder-7B-Instruct"
-
-# 4-bit Quantization Configuration
-bnb_config = BitsAndBytesConfig(
-    load_in_4bit=True,
-    bnb_4bit_quant_type="nf4",
-    bnb_4bit_compute_dtype=torch.float16,
-    bnb_4bit_use_double_quant=True
-)
+# 3B Model in native Float16 fits completely in 16GB VRAM without needing bitsandbytes
+model_id = "Qwen/Qwen2.5-Coder-3B-Instruct"
 
 tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
 tokenizer.pad_token = tokenizer.eos_token
 
 model = AutoModelForCausalLM.from_pretrained(
     model_id,
-    quantization_config=bnb_config,
+    torch_dtype=torch.float16,
     device_map="auto",
     trust_remote_code=True
 )
-
-model = prepare_model_for_kbit_training(model)
 
 # Apply LoRA on all attention and MLP projection weights
 lora_config = LoraConfig(
@@ -67,7 +58,7 @@ lora_config = LoraConfig(
 
 model = get_peft_model(model, lora_config)
 model.print_trainable_parameters()
-print("✅ Qwen2.5-Coder-7B loaded & prepared with LoRA adapters!")
+print("✅ Qwen2.5-Coder-3B loaded in FP16 with LoRA adapters (Universal P100/T4 support)!")
 """))
 
     # Cell 3: Dataset Preparation
