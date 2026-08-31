@@ -76,7 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function updateEngineUI() {
     if (currentEngine === "mlx") {
-      if (engineLabel) engineLabel.innerText = "Apple M4 (Fine-Tuned)";
+      if (engineLabel) engineLabel.innerText = "Qwen 2.5 (LoRA Fine-Tuned)";
       if (engineIcon) engineIcon.innerText = "🍎";
     } else {
       if (engineLabel) engineLabel.innerText = "Groq LPU (Qwen 27B)";

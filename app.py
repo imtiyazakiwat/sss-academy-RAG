@@ -60,7 +60,7 @@ def health_check():
         "embedding_model": EMBEDDING_MODEL,
         "generation_model": GROQ_MODEL,
         "mlx_active": mlx_active,
-        "mlx_model": "Google Gemma 2 2B + DoRA (Apple M4)",
+        "mlx_model": "Qwen 2.5 1.5B + Fine-Tuned LoRA (Apple Silicon MLX)",
         "default_engine": "mlx" if mlx_active else "groq",
         "has_groq_key": True,
         "exact_threshold": EXACT_MATCH_THRESHOLD,
