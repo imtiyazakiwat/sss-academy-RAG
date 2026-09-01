@@ -31,6 +31,7 @@ EMBEDDING_DIM = 384
 LOCAL_MODEL = "mlx-community/Qwen2.5-3B-Instruct-4bit"
 # LOCAL_MODEL = "mlx-community/Qwen2.5-7B-Instruct-4bit"  # 16GB+ RAM
 MAX_TOKENS = 256
+MAX_TOKENS_LARGE = 512          # large mode: extended budget for detailed notes
 TEMPERATURE = 0.2
 
 # Context budget fed to the LLM. Prefill (first-token) time scales with this,
@@ -39,8 +40,8 @@ TEMPERATURE = 0.2
 #   ~1400 chars  -> ~0.9s TTFT
 #   ~1900 chars  -> ~1.3s TTFT
 #   ~3100 chars  -> ~3.2s TTFT
-MAX_CONTEXT_CHARS = 1500
-TOP_K_CONTEXT = 2
+MAX_CONTEXT_CHARS = 800
+TOP_K_CONTEXT = 1
 
 # ---------------------------------------------------------------------------
 # Retrieval Settings
@@ -66,6 +67,15 @@ LOW_CONFIDENCE = 0.75    # <  0.75 -> "not available in knowledge base"
 # (no LLM call) instead of producing an ungrounded answer.
 MIN_VECTOR_FOR_WEAK_LEXICAL = 0.78
 MIN_LEXICAL_FOR_WEAK_VECTOR = 0.60
+
+# Absolute floor for the "not available" gate. Below this there is effectively
+# no relevance at all (no lexical overlap and negligible vector similarity), so
+# the query is clearly off-topic and rejected WITHOUT calling the LLM. Anything
+# at or above this floor is handed to the LLM, which judges (with typo-awareness
+# in its prompt) whether the retrieved context actually covers the intended
+# topic. This lets misspelled/casual queries through instead of being rejected
+# purely on retrieval score.
+ABSOLUTE_VECTOR_FLOOR = 0.40
 
 # ---------------------------------------------------------------------------
 # Server

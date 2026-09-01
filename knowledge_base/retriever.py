@@ -28,6 +28,78 @@ QUERY_EXPANSIONS = [
 ]
 
 
+# Common misspellings of domain terms -> correct form. Applied to the query
+# BEFORE vector/BM25 search and lexical scoring so typos still retrieve the
+# right notes. Used ONLY for retrieval, never exposed to the user.
+SPELL_CORRECTIONS = {
+    "chek": "check", "chcek": "check", "ckecks": "checks", "ceck": "check",
+    "contraint": "constraint", "contraints": "constraints", "contrain": "constraint",
+    "constrint": "constraint", "cosnstraint": "constraint", "constrains": "constraints",
+    "trunctae": "truncate", "truncat": "truncate", "truncatd": "truncated",
+    "surrgote": "surrogate", "surrgote": "surrogate", "surrogate": "surrogate",
+    "foriegn": "foreign", "foreing": "foreign", "forign": "foreign",
+    "primery": "primary", "seconary": "secondary",
+    "distinct": "distinct", "distint": "distinct",
+    "verion": "version", "verson": "version",
+    "dimesion": "dimension", "demention": "dimension",
+    "defect": "defect", "deffect": "defect",
+    "loading": "loading", "extractin": "extraction",
+    "normalization": "normalization", "normaliazation": "normalization",
+    "quey": "query", "queries": "query", "querys": "query",
+    "explain": "explain", "explin": "explain", "explaine": "explain",
+    "defintion": "definition", "defination": "definition",
+    "refernce": "reference", "refernece": "reference",
+    "snowflake": "snowflake", "snwoflake": "snowflake",
+    "schem": "schema", "scemas": "schemas",
+    "databse": "database", "datsbase": "database",
+    "hierarchy": "hierarchy", "herarchy": "hierarchy",
+    "subset": "subset", "subsetting": "subsetting",
+}
+
+
+def _edit_distance(a: str, b: str) -> int:
+    """Levenshtein distance (small, bounded helper for fuzzy token matching)."""
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    if abs(len(a) - len(b)) > 2:
+        return 99
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            cur.append(min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (ca != cb)))
+        prev = cur
+    return prev[-1]
+
+
+def correct_query(query: str) -> str:
+    """Replace known typo'd tokens with their correct domain terms.
+    Preserves original spacing/punctuation."""
+    return re.sub(
+        r"[A-Za-z]+",
+        lambda m: SPELL_CORRECTIONS.get(m.group(0).lower(), m.group(0)),
+        query,
+    )
+
+
+def _fuzzy_hits(q_token: str, content_lower: str) -> bool:
+    """True if q_token appears in content, or is within edit distance of a
+    content word (handles typos the dictionary doesn't cover)."""
+    if q_token in content_lower:
+        return True
+    max_dist = 1 if len(q_token) <= 4 else 2
+    content_tokens = re.findall(r"[a-z0-9]+", content_lower)
+    return any(
+        len(w) >= 4 and _edit_distance(q_token, w) <= max_dist
+        for w in content_tokens
+    )
+
+
+
 STOPWORDS = {
     "what", "is", "the", "a", "an", "and", "or", "of", "to", "in", "on",
     "for", "with", "how", "why", "do", "does", "did", "are", "be", "you",
@@ -39,12 +111,16 @@ STOPWORDS = {
 def _lexical_relevance(query: str, content: str) -> float:
     """Fraction of meaningful query tokens that appear in the chunk.
     Exact-term interview topics (SCD, Fact Table, Truncate, PK/FK) carry
-    strong weight because they are distinctive technical anchors."""
-    q_tokens = {w for w in re.findall(r"[a-z0-9]+", query.lower()) if w not in STOPWORDS}
+    strong weight because they are distinctive technical anchors.
+
+    Typos are tolerated via spelling correction + fuzzy (edit-distance) match.
+    """
+    corrected = correct_query(query)
+    q_tokens = {w for w in re.findall(r"[a-z0-9]+", corrected.lower()) if w not in STOPWORDS}
     if not q_tokens:
         return 0.0
     content_lower = content.lower()
-    hits = sum(1 for w in q_tokens if w in content_lower)
+    hits = sum(1 for w in q_tokens if _fuzzy_hits(w, content_lower))
     return hits / len(q_tokens)
 
 
@@ -74,7 +150,10 @@ class HybridRetriever:
         """Run hybrid retrieval. Returns (final_results, breakdown).
         final_results: list of {topic, page, content, score}
         breakdown: {vector_score, bm25_score, type}"""
-        variants = expand_query(query)
+        # Correct obvious misspellings first so both vector and BM25 search
+        # match the intended terms ("chek" -> "check", "contraint" -> ...).
+        normalized = correct_query(query)
+        variants = expand_query(normalized)
 
         # --- Vector search across ALL variants, taking max score per doc ---
         vec_docs = {}

@@ -34,6 +34,7 @@ qa_system = RAGSystem(load_llm=True)
 
 class QueryRequest(BaseModel):
     question: str
+    mode: str = "fast"
 
 
 class QueryResponse(BaseModel):
@@ -87,7 +88,8 @@ def ask_question(req: QueryRequest):
     q = req.question.strip()
     if not q:
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
-    return qa_system.answer(q)
+    mode = req.mode if req.mode in ("fast", "large") else "fast"
+    return qa_system.answer(q, mode=mode)
 
 
 @app.post("/api/ask-stream")
@@ -95,6 +97,7 @@ def ask_question_stream(req: QueryRequest):
     q = req.question.strip()
     if not q:
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
+    mode = req.mode if req.mode in ("fast", "large") else "fast"
 
     t0 = time.time()
 
@@ -128,7 +131,7 @@ def ask_question_stream(req: QueryRequest):
 
     # 2. Real streaming: retrieve + route already done above, now stream the
     #    LLM tokens live (no blocking pre-generation of the full answer).
-    participants = qa_system.llm.generate(q, retrieved, stream=True)
+    participants = qa_system.llm.generate(q, retrieved, stream=True, mode=mode)
 
     def stream_tokens():
         meta = {

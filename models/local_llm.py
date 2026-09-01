@@ -13,34 +13,41 @@ from mlx_lm.sample_utils import make_sampler
 from config import (
     LOCAL_MODEL,
     MAX_TOKENS,
+    MAX_TOKENS_LARGE,
     MAX_CONTEXT_CHARS,
     TEMPERATURE,
     TOP_K_CONTEXT,
 )
 
-# Strict grounding prompt template.
-# NOTE: the off-topic rejection ("This information is not available...") is
-# handled at the retrieval/confidence gate BEFORE the LLM is called, so we do
-# NOT put that phrase in this prompt. Doing so primed the small 3B model to
-# repeat it; removing it makes the model reliably answer from the (guaranteed
-# on-topic) context instead of refusing.
-SYSTEM_PROMPT = """You are an ETL interview assistant. The context below is the knowledge base section relevant to the user's question.
+# Flexible grounding prompt template.
+# NOTE: the LLM is instructed to use CONTEXT as the primary source of truth, but
+# to fall back to its own expert knowledge if the context lacks the answer.
+# It is explicitly told to avoid meta-phrases like "according to the context".
+_BASE_INSTRUCTIONS = """You are an expert ETL and SQL interview prep assistant. You provide clear, practical, and highly accurate answers, matching the concise and informative tone of the provided CONTEXT notes.
 
-INSTRUCTIONS:
-1. Answer SOLELY from CONTEXT. Never use outside knowledge or internet definitions.
-2. Use CONTEXT to give a full, direct answer. Cover every point the question asks about that appears in CONTEXT, even when the wording differs.
-3. Do not refuse or hedge: if CONTEXT discusses the concept, explain it using CONTEXT.
-4. Reuse the EXACT technical terminology, SQL syntax, and test-case steps that appear verbatim in CONTEXT (e.g. surrogate key, ETL Effective Start Date, Active Row Flag='A'/'H', Version Number, MINUS queries).
-5. Be SHORT. Respond as a compact outline only:
-   - One bullet per point, each bullet ONE line, at most one short sentence.
-   - No paragraphs, no multi-sentence explanations of a single point, no restating the question, no introductions or conclusions.
-   - Do not add examples the context does not include.
-   - A complete answer lists all the phases/types/steps in CONTEXT, but each in a single line.
-   - Stop as soon as every asked point is covered — never pad.
+RULES:
+- Never use phrases like "based on the provided context", "in the given context", or "according to the text". Just answer the question directly and naturally.
+- Use the CONTEXT as your primary source of truth, matching its exact terms, definitions, and SQL dialects.
+- If the CONTEXT does not fully contain the answer, you MUST use your own expert knowledge to write queries, explain concepts, and answer creatively. Do not say the information is not available; provide a helpful and accurate answer anyway.
+- Do not hedge or repeat the question.
+- Always aim to provide a working solution, SQL query, or explanation for any question asked.
+
+{detail}
 
 CONTEXT:
 {context}
 """
+
+# "fast" mode: compact outline, one point per line, no padding.
+FAST_DETAIL = """FORMAT: concise bullet list only. One bullet per point, one line each, no paragraphs, no intro/conclusion, no examples not in CONTEXT, and no padding."""
+
+# "large" mode: detailed like notes, but still start with the main answer.
+LARGE_DETAIL = """FORMAT: detailed like classroom notes, in short paragraphs and bullets. FIRST line must be: **Main Answer:** then a bold one-line summary of the direct answer. Then expand each point with CONTEXT's details, using its exact terms/SQL. Stay grounded; stop once all asked points are covered."""
+
+PROMPTS = {
+    "fast": _BASE_INSTRUCTIONS.format(detail=FAST_DETAIL, context="{context}"),
+    "large": _BASE_INSTRUCTIONS.format(detail=LARGE_DETAIL, context="{context}"),
+}
 
 
 class LocalLLM:
@@ -66,7 +73,7 @@ class LocalLLM:
             print(f"Failed to load local model: {e}")
             self.is_loaded = False
 
-    def _build_prompt(self, question, context_chunks):
+    def _build_prompt(self, question, context_chunks, mode="fast"):
         """Build the grounded generation prompt with a bounded context budget.
 
         Only the top chunk(s), truncated, are injected so that prefill (first
@@ -84,7 +91,7 @@ class LocalLLM:
             budget -= len(content)
 
         context_str = "\n\n---\n\n".join(context_blocks)
-        system = SYSTEM_PROMPT.format(context=context_str)
+        system = PROMPTS.get(mode, PROMPTS["fast"]).format(context=context_str)
         messages = [
             {"role": "system", "content": system},
             {"role": "user", "content": question},
@@ -93,16 +100,16 @@ class LocalLLM:
             messages, tokenize=False, add_generation_prompt=True
         )
 
-    def generate(self, question, context_chunks, stream=False):
+    def generate(self, question, context_chunks, stream=False, mode="fast"):
         """Generate a full answer. Returns (text, ttft_ms, total_ms)."""
         if not self.is_loaded:
             return "⚠️ Local model not loaded.", 0.0, 0.0
 
-        prompt = self._build_prompt(question, context_chunks)
+        prompt = self._build_prompt(question, context_chunks, mode=mode)
         t0 = time.time()
 
         gen_kwargs = {
-            "max_tokens": MAX_TOKENS,
+            "max_tokens": MAX_TOKENS_LARGE if mode == "large" else MAX_TOKENS,
             "sampler": make_sampler(temp=TEMPERATURE),
         }
 

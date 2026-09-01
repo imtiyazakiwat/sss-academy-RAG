@@ -48,7 +48,7 @@ class RAGSystem:
         self.llm = LocalLLM() if load_llm else None
         self.generator = AnswerGenerator(self.llm) if self.llm else None
 
-    def answer(self, question):
+    def answer(self, question, mode="fast"):
         """Full pipeline. Returns a structured result dict."""
         t0 = time.time()
 
@@ -57,7 +57,7 @@ class RAGSystem:
 
         top_score = retrieved[0]["score"] if retrieved else 0.0
 
-        gen = self.generator.generate(question, retrieved, top_score) if self.generator else {
+        gen = self.generator.generate(question, retrieved, top_score, mode=mode) if self.generator else {
             "answer": retrieved[0]["content"] if retrieved else "This information is not available in the knowledge base.",
             "mode": "extracted",
             "generation_ms": 0.0,

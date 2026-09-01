@@ -7,7 +7,12 @@ Routing:
   - score <  0.60 : return "This information is not available in the knowledge base."
 """
 
-from config import LOW_CONFIDENCE, MIN_LEXICAL_FOR_WEAK_VECTOR, MIN_VECTOR_FOR_WEAK_LEXICAL
+from config import (
+    LOW_CONFIDENCE,
+    MIN_LEXICAL_FOR_WEAK_VECTOR,
+    MIN_VECTOR_FOR_WEAK_LEXICAL,
+    ABSOLUTE_VECTOR_FLOOR,
+)
 from models.local_llm import LocalLLM
 
 NOT_AVAILABLE = "This information is not available in the knowledge base."
@@ -34,24 +39,16 @@ class AnswerGenerator:
         not-available message and live LLM streaming without a blocking call.
         """
         top = retrieved[0] if retrieved else None
-        if top is None:
-            return {"answer": NOT_AVAILABLE, "mode": "unsupported"}
 
-        lexical = top.get("lexical", 0.0)
-        vector = top.get("vector_score", 0.0)
-
-        # Unsupported: no real relevance to the question
-        if top_score < self.low_conf \
-           or (vector < self.min_vector and lexical < self.min_lexical):
-            return {"answer": NOT_AVAILABLE, "mode": "unsupported"}
-
-        # LLM unavailable -> return the best raw chunk (still grounded)
+        # LLM unavailable -> return the best raw chunk or NOT_AVAILABLE
         if not self.llm or not self.llm.is_loaded:
+            if top is None:
+                return {"answer": NOT_AVAILABLE, "mode": "unsupported"}
             return {"answer": top["content"], "mode": "extracted"}
 
         return {"mode": "generated"}
 
-    def generate(self, question, retrieved, top_score):
+    def generate(self, question, retrieved, top_score, mode="fast"):
         """
         Returns (answer, mode, generation_ms).
         mode in {'generated', 'extracted', 'unsupported'}
@@ -64,12 +61,7 @@ class AnswerGenerator:
             Fall back to the raw top chunk only if the LLM is unavailable.
         """
         top = retrieved[0] if retrieved else None
-        if top is None:
-            return {
-                "answer": NOT_AVAILABLE,
-                "mode": "unsupported",
-                "generation_ms": 0.0,
-            }
+
 
         decision = self.route(question, retrieved, top_score)
         if decision["mode"] != "generated":
@@ -80,7 +72,9 @@ class AnswerGenerator:
             }
 
         # Grounded LLM synthesis from the routed top context
-        text, ttft_ms, total_ms = self.llm.generate(question, retrieved)
+        text, ttft_ms, total_ms = self.llm.generate(
+            question, retrieved, mode=mode
+        )
         return {
             "answer": text,
             "mode": "generated",

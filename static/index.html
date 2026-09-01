@@ -1,147 +1,1305 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ETL Interview RAG Copilot</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css">
-  <link rel="stylesheet" href="/static/rag.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prepwise — ETL & SQL interview prep</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  :root{
+    --top:#8FB0FF;
+    --mid:#5B72C9;
+    --bottom:#12152A;
+    --panel:rgba(255,255,255,.07);
+    --panel-border:rgba(255,255,255,.14);
+    --text:#F4F6FC;
+    --text-muted:rgba(244,246,252,.66);
+    --text-faint:rgba(244,246,252,.4);
+    --accent:#8FB4FF;
+    --accent-strong:#6C93FF;
+    --warm:#F4C089;
+    --user-bubble:#4C6FE0;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#080a12;
+    font-family:'Inter',-apple-system,sans-serif;
+    color:var(--text);
+  }
+  h1,h2,h3{font-family:'Fraunces',serif; font-weight:600; margin:0;}
+  button{font-family:inherit; cursor:pointer;}
+
+  button:focus-visible,
+  input:focus-visible{
+    outline:2px solid var(--accent);
+    outline-offset:2px;
+  }
+
+  /* ---------- outer app card ---------- */
+  .app-card{
+    position:relative;
+    width:100vw;
+    height:100vh;
+    background:linear-gradient(180deg, var(--top) 0%, var(--mid) 46%, var(--bottom) 78%);
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .shell{
+    position:relative;
+    flex:1;
+    display:flex;
+    min-height:0;
+  }
+
+  /* ---------- history drawer (mobile: overlay, desktop: sidebar) ---------- */
+  .drawer{
+    position:absolute; inset:0;
+    background:rgba(9,11,22,.94);
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    transform:translateX(-100%);
+    transition:transform .28s ease;
+    z-index:20;
+    display:flex;
+    flex-direction:column;
+    padding:22px 18px;
+    border-right:1px solid var(--panel-border);
+  }
+  .drawer.open{ transform:translateX(0); }
+  .drawer-head{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:16px;
+    padding-bottom:8px;
+    border-bottom:1px solid rgba(255,255,255,.08);
+  }
+  .drawer-head h2{ font-size:16px; }
+  .drawer-actions{ display:flex; align-items:center; gap:6px; }
+
+  .new-chat-btn{
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    background:rgba(255,255,255,.1);
+    border:1px solid rgba(255,255,255,.2);
+    color:#fff;
+    padding:9px 14px;
+    border-radius:12px;
+    font-size:13px;
+    font-weight:600;
+    margin-bottom:14px;
+    transition:background .15s ease, border-color .15s ease;
+  }
+  .new-chat-btn:hover{
+    background:rgba(255,255,255,.18);
+    border-color:rgba(255,255,255,.35);
+  }
+
+  .drawer-list{ overflow-y:auto; display:flex; flex-direction:column; gap:4px; flex:1; }
+  .drawer-list::-webkit-scrollbar{ width:4px; }
+  .drawer-list::-webkit-scrollbar-thumb{ background:rgba(255,255,255,.15); border-radius:4px; }
+
+  .drawer-item-wrap{
+    display:flex; align-items:center; gap:4px;
+    border-radius:12px;
+    transition:background .15s ease;
+  }
+  .drawer-item-wrap:hover{ background:rgba(255,255,255,.08); }
+  .drawer-item-wrap.active{ background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.2); }
+
+  .drawer-item{
+    flex:1;
+    background:none; border:none;
+    text-align:left;
+    color:var(--text-muted);
+    font-size:13.5px;
+    padding:10px 10px;
+    border-radius:10px;
+    transition:color .15s ease;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    display:flex; flex-direction:column; gap:2px;
+  }
+  .drawer-item-wrap.active .drawer-item{ color:var(--text); font-weight:600; }
+  .drawer-item-title{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .drawer-item-time{ font-size:11px; color:var(--text-faint); }
+
+  .drawer-del-btn{
+    background:none; border:none;
+    color:var(--text-faint);
+    padding:6px 8px;
+    border-radius:8px;
+    font-size:12px;
+    opacity:0;
+    transition:opacity .15s ease, color .15s ease;
+  }
+  .drawer-item-wrap:hover .drawer-del-btn{ opacity:0.8; }
+  .drawer-del-btn:hover{ opacity:1; color:#FF9F9F; }
+
+  .drawer-empty{ color:var(--text-faint); font-size:13px; padding:12px 8px; line-height:1.5; }
+
+  /* ---------- chat panel ---------- */
+  .chat-panel{
+    position:relative;
+    flex:1;
+    min-width:0;
+    display:flex;
+    flex-direction:column;
+  }
+
+  .wave{
+    position:absolute;
+    top:0; left:0; right:0;
+    width:100%; height:340px;
+    pointer-events:none;
+    z-index:1;
+  }
+
+  .topbar{
+    position:relative;
+    z-index:5;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:20px 20px 0;
+    flex:none;
+  }
+  .icon-btn{
+    width:38px; height:38px;
+    border-radius:50%;
+    border:1px solid rgba(255,255,255,.25);
+    background:rgba(255,255,255,.1);
+    color:var(--text);
+    display:flex; align-items:center; justify-content:center;
+    font-size:15px;
+    transition:background .15s ease;
+  }
+  .icon-btn:hover{ background:rgba(255,255,255,.18); }
+
+  .speed-select{
+    display:flex; gap:3px;
+    background:rgba(255,255,255,.1);
+    border:1px solid rgba(255,255,255,.2);
+    border-radius:999px;
+    padding:3px;
+  }
+  .speed-btn{
+    border:none; background:none;
+    color:rgba(255,255,255,.55);
+    font-size:11.5px; font-weight:700;
+    padding:6px 12px;
+    border-radius:999px;
+    display:flex; align-items:center; gap:4px;
+    transition:background .15s ease, color .15s ease;
+  }
+  .speed-btn.active{ background:#fff; color:#2A3B7A; }
+  .speed-btn:disabled{ cursor:default; opacity:.5; }
+  .speed-btn:not(.active):not(:disabled):hover{ color:#fff; background:rgba(255,255,255,.08); }
+  .lock{ font-size:9px; opacity:.8; margin-left:2px; }
+
+  /* ---------- scroll area ---------- */
+  .thread{
+    position:relative;
+    z-index:5;
+    flex:1;
+    overflow-y:auto;
+    padding:14px 20px 10px;
+    display:flex;
+    flex-direction:column;
+    gap:16px;
+    scrollbar-width:none;
+  }
+  .thread::-webkit-scrollbar{ display:none; }
+
+  .intro{
+    display:flex;
+    gap:12px;
+    align-items:flex-start;
+    margin-top:10px;
+  }
+  .avatar{
+    flex:none;
+    width:44px; height:44px;
+    border-radius:50%;
+    background:radial-gradient(circle at 32% 28%, #fff, var(--accent) 45%, var(--user-bubble) 100%);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 6px 16px -4px rgba(0,0,0,.4);
+  }
+  .avatar svg{ width:22px; height:22px; }
+
+  .bubble-assistant{
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
+    padding:13px 16px;
+    border-radius:4px 18px 18px 18px;
+    font-size:14.5px;
+    line-height:1.55;
+    max-width:78%;
+  }
+  .bubble-assistant b{ font-weight:600; }
+
+  .bubble-user{
+    align-self:flex-end;
+    background:var(--user-bubble);
+    color:#fff;
+    padding:12px 16px;
+    border-radius:18px 4px 18px 18px;
+    font-size:14.5px;
+    line-height:1.5;
+    max-width:78%;
+  }
+
+  .row-assistant{ display:flex; gap:10px; align-items:flex-start; }
+
+  .answer-bubble{
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
+    border-radius:4px 18px 18px 18px;
+    padding:14px 16px 15px;
+    max-width:82%;
+    font-size:14.5px;
+    line-height:1.6;
+  }
+  .answer-content{ min-height:18px; }
+  .answer-content p{ margin:0 0 10px 0; }
+  .answer-content p:last-child{ margin-bottom:0; }
+  .answer-content ul, .answer-content ol{ margin:4px 0 10px 0; padding-left:18px; }
+  .answer-content li{
+    margin-bottom:7px;
+  }
+  .answer-content li::marker{ color:var(--warm); }
+
+  .answer-content strong, .answer-content b{ font-weight:600; color:#fff; }
+  .answer-content code{
+    font-family:'JetBrains Mono', monospace;
+    background:rgba(0,0,0,.35);
+    border:1px solid rgba(255,255,255,.1);
+    padding:2px 6px;
+    border-radius:6px;
+    font-size:13px;
+    color:var(--warm);
+  }
+  .answer-content pre{
+    background:rgba(10,14,24,.75);
+    border:1px solid rgba(255,255,255,.1);
+    padding:12px 14px;
+    border-radius:10px;
+    overflow-x:auto;
+    margin:10px 0;
+  }
+  .answer-content pre code{
+    background:none; border:none; padding:0; color:#F0F4FF; font-size:13px;
+  }
+
+  .answer-footer{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-top:12px; padding-top:10px;
+    border-top:1px solid rgba(255,255,255,.1);
+  }
+  .copy-btn{
+    background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.16);
+    color:var(--text);
+    font-size:12px;
+    padding:4px 10px;
+    border-radius:8px;
+    display:inline-flex; align-items:center; gap:5px;
+    transition:background .15s ease;
+  }
+  .copy-btn:hover{ background:rgba(255,255,255,.18); }
+
+  /* Sources accordion */
+  .sources-expander{ margin-top:10px; padding-top:8px; border-top:1px solid rgba(255,255,255,.08); }
+  .sources-toggle{
+    background:none; border:none;
+    color:var(--text-faint); font-size:11.5px;
+    padding:4px 0; display:flex; align-items:center; gap:5px;
+    transition:color .15s ease;
+  }
+  .sources-toggle:hover{ color:var(--text); }
+  .sources-content{ margin-top:8px; display:flex; flex-direction:column; gap:6px; }
+  .source-chip{
+    background:rgba(0,0,0,.25);
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:8px; padding:8px 12px;
+    font-size:12px; color:var(--text-muted); line-height:1.45;
+  }
+  .source-header-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:4px; }
+  .source-page-label{ color:var(--warm); font-weight:600; }
+  .source-view-full-btn{
+    background:none; border:none; color:var(--accent); font-size:11px;
+    text-decoration:underline; padding:0; cursor:pointer;
+  }
+
+  /* Thinking Bubble with Three Bouncing Dots */
+  .thinking-bubble{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    background:var(--panel);
+    border:1px solid var(--panel-border);
+    backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
+    padding:12px 16px;
+    border-radius:4px 18px 18px 18px;
+    width:fit-content;
+  }
+  .thinking-bubble span{
+    display:inline-block;
+    width:6px;
+    height:6px;
+    border-radius:50%;
+    background:var(--warm);
+    animation:bounce 1.1s infinite ease-in-out;
+  }
+  .thinking-bubble span:nth-child(2){ animation-delay:.15s; }
+  .thinking-bubble span:nth-child(3){ animation-delay:.3s; }
+  
+  @keyframes bounce{
+    0%,80%,100%{ transform:translateY(0); opacity:.5; }
+    40%{ transform:translateY(-4px); opacity:1; }
+  }
+
+  /* ---------- suggestion pills ---------- */
+  .suggestions{
+    display:flex; flex-wrap:wrap; gap:8px;
+    margin-left:56px;
+    transition:opacity .2s ease;
+  }
+  .pill{
+    background:rgba(255,255,255,.1);
+    border:1px solid rgba(255,255,255,.18);
+    color:var(--text);
+    font-size:12.5px;
+    padding:8px 13px;
+    border-radius:999px;
+    transition:background .15s ease, transform .12s ease;
+  }
+  .pill:hover{ background:rgba(255,255,255,.2); transform:translateY(-1px); }
+
+  /* ---------- composer ---------- */
+  .composer-wrap{
+    position:relative;
+    z-index:5;
+    padding:14px 16px 20px;
+    flex:none;
+  }
+  .composer{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    background:rgba(13,16,32,.55);
+    border:1px solid rgba(255,255,255,.16);
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    border-radius:999px;
+    padding:7px 7px 7px 16px;
+    max-width:640px;
+    margin:0 auto;
+    transition:border-color .2s ease, box-shadow .2s ease;
+  }
+  .composer:focus-within{
+    border-color:rgba(255,255,255,.3);
+    box-shadow:0 0 0 1px rgba(255,255,255,.15);
+  }
+  .composer button.util{
+    flex:none;
+    width:32px; height:32px;
+    border-radius:50%;
+    border:none;
+    background:rgba(255,255,255,.1);
+    color:var(--text);
+    display:flex; align-items:center; justify-content:center;
+    transition:background .15s ease;
+  }
+  .composer button.util:hover{ background:rgba(255,255,255,.2); }
+  .composer input{
+    flex:1;
+    background:none;
+    border:none;
+    outline:none;
+    color:var(--text);
+    font-size:14.5px;
+    padding:8px 0;
+  }
+  .composer input::placeholder{ color:rgba(244,246,252,.45); }
+  .send-btn{
+    flex:none;
+    width:38px; height:38px;
+    border-radius:50%;
+    border:none;
+    background:var(--warm);
+    color:#3A2A0F;
+    display:flex; align-items:center; justify-content:center;
+    transition:transform .12s ease, background .15s ease;
+  }
+  .send-btn:hover{ background:#f6cc9c; }
+  .send-btn:active{ transform:scale(.92); }
+  .send-btn:disabled{ opacity:0.5; cursor:not-allowed; transform:none; }
+  .send-btn svg{ width:16px; height:16px; }
+
+  /* Source modal */
+  .source-modal-backdrop{
+    position:fixed; inset:0;
+    background:rgba(6,9,18,.75);
+    backdrop-filter:blur(8px);
+    z-index:50;
+    display:none; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  .source-modal-backdrop.open{ display:flex; }
+  .source-modal{
+    background:#121727;
+    border:1px solid var(--panel-border);
+    border-radius:16px;
+    width:min(600px, 100%);
+    max-height:80vh;
+    display:flex; flex-direction:column;
+    box-shadow:0 24px 60px -12px rgba(0,0,0,.6);
+  }
+  .source-modal-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 20px;
+    border-bottom:1px solid var(--panel-border);
+  }
+  .source-modal-head h3{ font-size:16px; color:var(--warm); }
+  .source-modal-body{
+    padding:18px 20px; overflow-y:auto;
+    font-size:13.5px; line-height:1.65; color:var(--text-muted);
+    white-space:pre-wrap;
+  }
+
+  /* =====================================================
+     RESPONSIVE BREAKPOINTS
+     ===================================================== */
+  @media (max-width:380px){
+    .topbar{ padding:16px 14px 0; }
+    .thread{ padding:12px 14px 8px; }
+    .composer-wrap{ padding:12px 12px 16px; }
+    .bubble-assistant, .bubble-user, .answer-bubble{ max-width:86%; }
+    .suggestions{ margin-left:0; }
+  }
+
+  @media (min-width:640px){
+    body{ padding:28px; }
+    .app-card{
+      width:min(480px, 100%);
+      height:min(840px, calc(100vh - 56px));
+      border-radius:32px;
+      box-shadow:0 40px 80px -30px rgba(0,0,0,.6);
+    }
+  }
+
+  @media (min-width:900px){
+    .app-card{
+      width:min(1040px, 94vw);
+      height:min(760px, 90vh);
+    }
+    .shell{ overflow:hidden; }
+
+    .drawer{
+      position:static;
+      inset:auto;
+      transform:none;
+      width:250px;
+      flex:none;
+      background:rgba(9,11,22,.5);
+      border-right:1px solid rgba(255,255,255,.1);
+      backdrop-filter:blur(6px);
+    }
+    #closeDrawer{ display:none; }
+    #drawerToggle{ display:none; }
+
+    .thread{ padding:20px 40px 14px; }
+    .composer-wrap{ padding:16px 40px 26px; }
+    .topbar{ padding:22px 40px 0; }
+
+    .bubble-assistant, .bubble-user{ max-width:60%; font-size:15px; }
+    .answer-bubble{ max-width:64%; font-size:15px; }
+    .suggestions{ margin-left:56px; }
+    .avatar{ width:46px; height:46px; }
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    *{ animation-duration:.001ms !important; transition-duration:.001ms !important; }
+  }
+</style>
 </head>
 <body>
-  <div class="background-glow top-left"></div>
-  <div class="background-glow bottom-right"></div>
 
-  <div class="app-container rag-layout">
-    <!-- Header -->
-    <header class="main-header">
-      <div class="brand-section">
-        <div class="logo-badge">🧠</div>
-        <div>
-          <h1>ETL Interview RAG Copilot</h1>
-          <p class="subtitle">SSS Academy Notes • Retrieval-First RAG • Qwen 2.5 3B on Apple M4 (100% Local)</p>
+<div class="app-card">
+  <div class="shell">
+
+    <!-- Drawer Sidebar -->
+    <div class="drawer" id="drawer">
+      <div class="drawer-head">
+        <h2>Your sessions</h2>
+        <div class="drawer-actions">
+          <button class="icon-btn" id="clearHistoryBtn" title="Clear history" aria-label="Clear history" style="width:30px;height:30px;font-size:12px;">🗑</button>
+          <button class="icon-btn" id="closeDrawer" aria-label="Close">✕</button>
         </div>
       </div>
-      <div class="system-status-pills">
-        <div class="status-pill" id="indexStatus">
-          <span class="status-dot"></span>
-          <span class="pill-text">Chunks: <strong id="indexedCount">…</strong></span>
-        </div>
-        <div class="status-pill">
-          <span id="engineIcon">🍎</span>
-          <span id="engineStatusText">Engine: <strong>Qwen 2.5 3B (Local RAG)</strong></span>
+      <button class="new-chat-btn" id="newChatBtn" title="Start a new topic">＋ New topic</button>
+      <div class="drawer-list" id="drawerList"></div>
+    </div>
+
+    <!-- Chat Panel -->
+    <div class="chat-panel">
+      <svg class="wave" viewBox="0 0 460 340" preserveAspectRatio="none">
+        <path d="M0,180 C120,240 200,140 300,190 C370,225 420,205 460,175 L460,0 L0,0 Z"
+              fill="rgba(255,255,255,0.06)"/>
+        <path d="M0,230 C110,290 210,210 300,250 C380,285 430,260 460,235 L460,0 L0,0 Z"
+              fill="rgba(255,255,255,0.04)"/>
+      </svg>
+
+      <div class="topbar">
+        <button class="icon-btn" id="drawerToggle" aria-label="History">☰</button>
+        <div class="speed-select" role="group" aria-label="Answer style">
+          <button class="speed-btn active" data-mode="fast">Fast</button>
+          <button class="speed-btn" data-mode="large">Large</button>
+          <button class="speed-btn" disabled>Deep <span class="lock">soon</span></button>
         </div>
       </div>
-    </header>
 
-    <!-- Main Content Grid: left = history, right = query + results -->
-    <main class="rag-main">
-      <!-- History Sidebar -->
-      <aside class="history-panel glass-panel">
-        <div class="history-header">
-          <span>🧾 Question History</span>
-          <button id="clearHistoryBtn" class="icon-btn" title="Clear history">🗑</button>
-        </div>
-        <div id="historyList" class="history-list">
-          <div class="history-empty">No questions yet. Ask something below.</div>
-        </div>
-      </aside>
-
-      <!-- Query + Results -->
-      <section class="rag-content">
-        <form id="questionForm" class="search-form glass-panel">
-          <label for="questionInput" class="input-label">Ask any ETL Interview Question</label>
-          <div class="input-wrapper">
-            <textarea
-              id="questionInput"
-              placeholder="e.g., What happens when the customer address changes? (paraphrased SCD Type 2)"
-              rows="3"
-              required
-            ></textarea>
-            <button type="submit" id="submitBtn" class="primary-btn">
-              <span class="btn-text">Answer</span>
-              <svg class="btn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-              </svg>
-            </button>
+      <div class="thread" id="thread">
+        <div class="intro" id="introGreeting">
+          <div class="avatar">
+            <svg viewBox="0 0 24 24" fill="none">
+              <circle cx="8.5" cy="11" r="1.6" fill="#2A3B7A"/>
+              <circle cx="15.5" cy="11" r="1.6" fill="#2A3B7A"/>
+              <path d="M8 15c1.2 1.1 2.6 1.6 4 1.6s2.8-.5 4-1.6" stroke="#2A3B7A" stroke-width="1.6" stroke-linecap="round"/>
+            </svg>
           </div>
+          <div class="bubble-assistant">
+            Hi, I'm <b>Prepwise</b> — ask me anything from your ETL &amp; SQL notes.
+          </div>
+        </div>
+
+        <div class="suggestions" id="suggestions">
+          <button type="button" class="pill">What is SCD Type 2?</button>
+          <button type="button" class="pill">TRUNCATE vs DELETE</button>
+          <button type="button" class="pill">2nd highest salary in SQL</button>
+          <button type="button" class="pill">Surrogate key?</button>
+          <button type="button" class="pill">Star vs snowflake schema</button>
+          <button type="button" class="pill">Bug life cycle</button>
+        </div>
+      </div>
+
+      <div class="composer-wrap">
+        <form class="composer" id="composerForm">
+          <button type="button" class="util" id="suggestBtn" title="Show topics">＋</button>
+          <input type="text" id="questionInput" placeholder="Ask anything…" autocomplete="off">
+          <button type="submit" class="send-btn" id="sendBtn" aria-label="Send">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M4 12L20 4L13 20L11 13L4 12Z" fill="currentColor"/></svg>
+          </button>
         </form>
+      </div>
+    </div>
 
-        <div class="suggestions-section">
-          <span class="suggestions-title">Quick Prompts:</span>
-          <div id="sampleChips" class="chips-container"></div>
-        </div>
-
-        <section id="resultsSection" class="results-card glass-panel hidden">
-          <!-- Metrics Ribbon -->
-          <div class="metrics-ribbon">
-            <div class="metric-item">
-              <span class="metric-label">Mode</span>
-              <div id="modeBadge" class="badge badge-generated">Grounded RAG</div>
-            </div>
-            <div class="metric-item">
-              <span class="metric-label">Confidence</span>
-              <div class="similarity-wrap">
-                <div class="progress-bar-bg">
-                  <div id="similarityBar" class="progress-bar-fill" style="width: 0%;"></div>
-                </div>
-                <span id="similarityValue" class="metric-val">—</span>
-              </div>
-            </div>
-            <div class="metric-item">
-              <span class="metric-label">Retrieval</span>
-              <span id="retrievalValue" class="metric-val highlight">—</span>
-            </div>
-            <div class="metric-item">
-              <span class="metric-label">First Token</span>
-              <span id="ttftValue" class="metric-val">—</span>
-            </div>
-          </div>
-
-          <!-- Answer Content -->
-          <div class="answer-container">
-            <div class="answer-header">
-              <div class="answer-header-left">
-                <span class="answer-icon">💬</span>
-                <span class="answer-title">Answer</span>
-              </div>
-              <button id="copyBtn" class="icon-btn" title="Copy answer to clipboard">
-                <span id="copyText">Copy</span>
-              </button>
-            </div>
-            <div id="answerBody" class="answer-body">
-              <div style="display: flex; align-items: center; gap: 8px; color: #94a3b8;">
-                <span class="status-dot" style="animation: pulse 1.2s infinite;"></span>
-                <span>Retrieving from knowledge base & generating grounded answer…</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Sources / Evidence -->
-          <div class="sources-header-row">
-            <span class="sources-title">📚 Sources (evidence)</span>
-            <span class="sources-hint">Click to copy source text</span>
-          </div>
-          <div id="sourcesList" class="sources-list"></div>
-        </section>
-
-        <section id="emptyState" class="empty-state glass-panel">
-          <div class="empty-icon-wrap">🗂️</div>
-          <h3>Ready to query the knowledge base</h3>
-          <p>Ask anything about the ETL classroom notes. Answers are grounded strictly in the PDF.</p>
-        </section>
-      </section>
-    </main>
-
-    <footer class="app-footer">
-      <p>RAG Copilot • Hybrid Retrieval (FAISS + BM25) → Qwen 2.5 3B Grounded Generation • 100% local on Apple M4</p>
-    </footer>
   </div>
+</div>
 
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <script src="/static/rag/app.js"></script>
+<!-- Source Page Modal Viewer -->
+<div class="source-modal-backdrop" id="sourceModal">
+  <div class="source-modal">
+    <div class="source-modal-head">
+      <h3 id="sourceModalTitle">Classroom Notes</h3>
+      <button class="icon-btn" id="closeSourceModal" aria-label="Close modal">✕</button>
+    </div>
+    <div class="source-modal-body" id="sourceModalBody">Loading page notes…</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const thread = document.getElementById('thread');
+  const suggestions = document.getElementById('suggestions');
+  const form = document.getElementById('composerForm');
+  const input = document.getElementById('questionInput');
+  const sendBtn = document.getElementById('sendBtn');
+  const suggestBtn = document.getElementById('suggestBtn');
+  const drawer = document.getElementById('drawer');
+  const drawerToggle = document.getElementById('drawerToggle');
+  const closeDrawer = document.getElementById('closeDrawer');
+  const drawerList = document.getElementById('drawerList');
+  const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+  const newChatBtn = document.getElementById('newChatBtn');
+  const introGreeting = document.getElementById('introGreeting');
+
+  // Source Modal
+  const sourceModal = document.getElementById('sourceModal');
+  const sourceModalTitle = document.getElementById('sourceModalTitle');
+  const sourceModalBody = document.getElementById('sourceModalBody');
+  const closeSourceModal = document.getElementById('closeSourceModal');
+
+  let activeMode = 'fast';
+  let activeSessionId = null;
+
+  // History sessions: { id, question, answer, evidence, timestamp }
+  let historySessions = [];
+  try {
+    historySessions = JSON.parse(localStorage.getItem('PREPWISE_SESSIONS_V4') || '[]');
+  } catch(e) {
+    historySessions = [];
+  }
+
+  // Load sample questions from backend
+  async function loadSampleQuestions() {
+    try {
+      const res = await fetch('/api/sample-questions');
+      if (res.ok) {
+        const questions = await res.json();
+        if (Array.isArray(questions) && questions.length > 0) {
+          suggestions.innerHTML = '';
+          questions.slice(0, 8).forEach(item => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'pill';
+            btn.textContent = item.text || item;
+            suggestions.appendChild(btn);
+          });
+          return;
+        }
+      }
+    } catch(e) {
+      console.debug('Failed to fetch samples:', e);
+    }
+  }
+
+  function formatTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const now = new Date();
+    const isToday = d.toDateString() === now.toDateString();
+    if (isToday) {
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+
+  function renderDrawer() {
+    drawerList.innerHTML = '';
+    if (!historySessions.length) {
+      drawerList.innerHTML = '<p class="drawer-empty">Your questions will show up here.</p>';
+      return;
+    }
+
+    historySessions.forEach((sess) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'drawer-item-wrap' + (activeSessionId === sess.id ? ' active' : '');
+      
+      const itemBtn = document.createElement('button');
+      itemBtn.className = 'drawer-item';
+      itemBtn.innerHTML = `
+        <span class="drawer-item-title">${escapeHtml(sess.question)}</span>
+        <span class="drawer-item-time">${formatTime(sess.timestamp)}</span>
+      `;
+      itemBtn.addEventListener('click', () => {
+        if (window.innerWidth < 900) drawer.classList.remove('open');
+        loadSession(sess.id);
+      });
+
+      const delBtn = document.createElement('button');
+      delBtn.className = 'drawer-del-btn';
+      delBtn.title = 'Delete question';
+      delBtn.innerHTML = '✕';
+      delBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteSession(sess.id);
+      });
+
+      wrap.appendChild(itemBtn);
+      wrap.appendChild(delBtn);
+      drawerList.appendChild(wrap);
+    });
+  }
+
+  function saveSession(sess) {
+    historySessions = historySessions.filter(s => s.question.toLowerCase() !== sess.question.toLowerCase());
+    historySessions.unshift(sess);
+    if (historySessions.length > 50) historySessions = historySessions.slice(0, 50);
+    activeSessionId = sess.id;
+    try {
+      localStorage.setItem('PREPWISE_SESSIONS_V4', JSON.stringify(historySessions));
+    } catch(e) {}
+    renderDrawer();
+  }
+
+  function deleteSession(id) {
+    historySessions = historySessions.filter(s => s.id !== id);
+    try {
+      localStorage.setItem('PREPWISE_SESSIONS_V4', JSON.stringify(historySessions));
+    } catch(e) {}
+    if (activeSessionId === id) {
+      resetChat();
+    } else {
+      renderDrawer();
+    }
+  }
+
+  function clearAllHistory() {
+    if (confirm('Clear all your question history?')) {
+      historySessions = [];
+      activeSessionId = null;
+      try {
+        localStorage.removeItem('PREPWISE_SESSIONS_V4');
+      } catch(e) {}
+      resetChat();
+    }
+  }
+
+  function resetChat() {
+    activeSessionId = null;
+    thread.innerHTML = '';
+    thread.appendChild(introGreeting);
+    thread.appendChild(suggestions);
+    renderDrawer();
+    input.value = '';
+    input.focus();
+  }
+
+  function createAvatar(small) {
+    const av = document.createElement('div');
+    av.className = 'avatar';
+    if (small) {
+      av.style.width = '34px';
+      av.style.height = '34px';
+    }
+    av.innerHTML = `
+      <svg viewBox="0 0 24 24" fill="none" style="${small ? 'width:18px;height:18px;' : ''}">
+        <circle cx="8.5" cy="11" r="1.6" fill="#2A3B7A"/>
+        <circle cx="15.5" cy="11" r="1.6" fill="#2A3B7A"/>
+        <path d="M8 15c1.2 1.1 2.6 1.6 4 1.6s2.8-.5 4-1.6" stroke="#2A3B7A" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>`;
+    return av;
+  }
+
+  function loadSession(id) {
+    const sess = historySessions.find(s => s.id === id);
+    if (!sess) return;
+    activeSessionId = sess.id;
+    renderDrawer();
+
+    thread.innerHTML = '';
+    thread.appendChild(introGreeting);
+
+    const userBubble = document.createElement('div');
+    userBubble.className = 'bubble-user';
+    userBubble.textContent = sess.question;
+    thread.appendChild(userBubble);
+
+    const answerRow = document.createElement('div');
+    answerRow.className = 'row-assistant';
+    answerRow.appendChild(createAvatar(true));
+
+    const bubble = createAnswerBubble(sess.answer, sess.evidence);
+    answerRow.appendChild(bubble);
+    thread.appendChild(answerRow);
+    scrollDown();
+  }
+
+  function scrollDown() {
+    requestAnimationFrame(() => {
+      thread.scrollTop = thread.scrollHeight;
+    });
+  }
+
+  // Remove internal prompt/RAG labels so the user only sees the answer itself.
+  // Strips "Main Answer:" (with its bold wrapper) and any leading phrases like
+  // "From your context..." / "Based on the knowledge base..." that the model
+  // may copy from the system prompt.
+  function cleanAnswer(raw) {
+    if (!raw) return '';
+    let t = String(raw);
+    // Drop a "**Main Answer:**" label but keep the content after it.
+    t = t.replace(/\*\*\s*Main\s*Answer\s*:?\s*\*\*/gi, '');
+    t = t.replace(/^\s*Main\s*Answer\s*:?\s*/gi, '');
+    // Trim leading internal-context references.
+    t = t.replace(
+      /^\s*(?:from\s+your\s+context|based\s+on\s+the\s+context|according\s+to\s+the\s+(?:context|knowledge\s+base)|in\s+the\s+context|the\s+context\s+(?:says|states|indicates))\s*[:\-–]?\s*/gi,
+      ''
+    );
+    return t.trim();
+  }
+
+  function formatText(markdownText) {
+    const clean = cleanAnswer(markdownText);
+    if (!clean) return '';
+    if (window.marked && typeof window.marked.parse === 'function') {
+      return marked.parse(clean);
+    }
+    return escapeHtml(clean).replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  async function openSourcePage(pageNumber) {
+    sourceModalTitle.textContent = `Classroom Notes — Page ${pageNumber}`;
+    sourceModalBody.textContent = 'Loading page notes…';
+    sourceModal.classList.add('open');
+
+    try {
+      const res = await fetch(`/api/sources/${pageNumber}`);
+      if (res.ok) {
+        const data = await res.json();
+        sourceModalBody.textContent = data.text || 'No text found on this page.';
+      } else {
+        sourceModalBody.textContent = `Could not load page ${pageNumber}.`;
+      }
+    } catch(err) {
+      sourceModalBody.textContent = `Error fetching source page: ${err.message}`;
+    }
+  }
+
+  function createAnswerBubble(answerText, evidence) {
+    const bubble = document.createElement('div');
+    bubble.className = 'answer-bubble';
+
+    const contentDiv = document.createElement('div');
+    contentDiv.className = 'answer-content';
+    contentDiv.innerHTML = formatText(answerText);
+    bubble.appendChild(contentDiv);
+
+    // Footer with Clean Copy Button
+    const footer = document.createElement('div');
+    footer.className = 'answer-footer';
+    
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'copy-btn';
+    copyBtn.type = 'button';
+    copyBtn.innerHTML = `
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+      </svg>
+      <span>Copy</span>`;
+    
+    copyBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(cleanAnswer(answerText)).then(() => {
+        copyBtn.innerHTML = `
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span>Copied!</span>`;
+        setTimeout(() => {
+          copyBtn.innerHTML = `
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span>Copy</span>`;
+        }, 1800);
+      });
+    });
+
+    footer.appendChild(copyBtn);
+    bubble.appendChild(footer);
+
+    // Sources accordion
+    if (evidence && evidence.length > 0) {
+      const pages = [...new Set(evidence.map(s => s.page).filter(Boolean))];
+      if (pages.length > 0) {
+        const expander = document.createElement('div');
+        expander.className = 'sources-expander';
+        
+        const toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
+        toggleBtn.className = 'sources-toggle';
+        toggleBtn.innerHTML = `📖 Referenced in notes (Page ${pages.join(', ')}) ▾`;
+
+        const sourcesWrap = document.createElement('div');
+        sourcesWrap.className = 'sources-content';
+        sourcesWrap.style.display = 'none';
+
+        evidence.slice(0, 3).forEach(src => {
+          const sc = document.createElement('div');
+          sc.className = 'source-chip';
+          sc.innerHTML = `
+            <div class="source-header-row">
+              <span class="source-page-label">Page ${src.page} ${src.topic ? '(' + escapeHtml(src.topic) + ')' : ''}</span>
+              <button type="button" class="source-view-full-btn">View full page</button>
+            </div>
+            <div>${escapeHtml(src.content ? src.content.substring(0, 200) + '…' : '')}</div>
+          `;
+          const btn = sc.querySelector('.source-view-full-btn');
+          if (btn) {
+            btn.addEventListener('click', () => openSourcePage(src.page));
+          }
+          sourcesWrap.appendChild(sc);
+        });
+
+        toggleBtn.addEventListener('click', () => {
+          const isOpen = sourcesWrap.style.display === 'flex';
+          sourcesWrap.style.display = isOpen ? 'none' : 'flex';
+          toggleBtn.innerHTML = `📖 Referenced in notes (Page ${pages.join(', ')}) ${isOpen ? '▾' : '▴'}`;
+          scrollDown();
+        });
+
+        expander.appendChild(toggleBtn);
+        expander.appendChild(sourcesWrap);
+        bubble.appendChild(expander);
+      }
+    }
+
+    return bubble;
+  }
+
+  async function ask(rawQuestion) {
+    const q = (rawQuestion || '').trim();
+    if (!q) return;
+
+    if (suggestions.parentNode) suggestions.remove();
+    input.value = '';
+    sendBtn.disabled = true;
+
+    // 1. Render User Bubble
+    const userBubble = document.createElement('div');
+    userBubble.className = 'bubble-user';
+    userBubble.textContent = q;
+    thread.appendChild(userBubble);
+    scrollDown();
+
+    // 2. Render Thinking Bubble with three animated bouncing dots
+    const thinkRow = document.createElement('div');
+    thinkRow.className = 'row-assistant';
+    thinkRow.appendChild(createAvatar(true));
+
+    const thinkBubble = document.createElement('div');
+    thinkBubble.className = 'thinking-bubble';
+    thinkBubble.innerHTML = '<span></span><span></span><span></span>';
+    thinkRow.appendChild(thinkBubble);
+    thread.appendChild(thinkRow);
+    scrollDown();
+
+    let serverAnswer = '';
+    let serverEvidence = [];
+    let querySuccess = false;
+    let hasReplacedThinking = false;
+
+    let effectiveQuery = q;
+    let effectiveMode = activeMode === 'large' ? 'large' : 'fast';
+
+    try {
+      const response = await fetch('/api/ask-stream', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: effectiveQuery, mode: effectiveMode })
+      });
+
+      if (response.ok && response.body) {
+        let answerRow = null;
+        let bubble = null;
+        let contentDiv = null;
+
+        function startStreamingView() {
+          if (hasReplacedThinking) return;
+          hasReplacedThinking = true;
+          thinkRow.remove();
+
+          answerRow = document.createElement('div');
+          answerRow.className = 'row-assistant';
+          answerRow.appendChild(createAvatar(true));
+
+          bubble = document.createElement('div');
+          bubble.className = 'answer-bubble';
+
+          contentDiv = document.createElement('div');
+          contentDiv.className = 'answer-content';
+          bubble.appendChild(contentDiv);
+
+          answerRow.appendChild(bubble);
+          thread.appendChild(answerRow);
+          scrollDown();
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        let renderTimer = null;
+        let lastRenderAt = 0;
+
+        function renderNow() {
+          lastRenderAt = Date.now();
+          if (!hasReplacedThinking) startStreamingView();
+          contentDiv.innerHTML = formatText(serverAnswer);
+          scrollDown();
+        }
+
+        function renderStream(force) {
+          clearTimeout(renderTimer);
+          if (force) {
+            renderNow();
+            return;
+          }
+          const elapsed = Date.now() - lastRenderAt;
+          if (elapsed >= 50) {
+            renderNow();
+            return;
+          }
+          // Schedule a render for the remaining time so continuous token
+          // delivery still paints progressively instead of debouncing forever.
+          renderTimer = setTimeout(renderNow, 50 - elapsed);
+        }
+
+        let lastYieldAt = Date.now();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop() || '';
+
+          for (const block of lines) {
+            if (!block.trim().startsWith('data: ')) continue;
+            const jsonStr = block.replace(/^data:\s*/, '').trim();
+            try {
+              const data = JSON.parse(jsonStr);
+              if (data.type === 'token') {
+                serverAnswer += data.text;
+                renderStream(false);
+              } else if (data.type === 'meta') {
+                if (Array.isArray(data.evidence)) serverEvidence = data.evidence;
+              } else if (data.type === 'complete' || data.type === 'done') {
+                if (data.answer) serverAnswer = data.answer;
+                if (Array.isArray(data.evidence)) serverEvidence = data.evidence;
+                clearTimeout(renderTimer);
+                renderStream(true);
+              }
+            } catch(err) {
+              console.debug('Chunk parse:', err);
+            }
+          }
+
+          // Yield to event loop to allow the browser to paint.
+          // Fast local streams can resolve continuously as microtasks, freezing the UI.
+          if (Date.now() - lastYieldAt >= 50) {
+            await new Promise(r => requestAnimationFrame(r));
+            lastYieldAt = Date.now();
+          }
+        }
+        clearTimeout(renderTimer);
+        renderStream(true);
+
+        if (serverAnswer.trim()) {
+          querySuccess = true;
+          if (!hasReplacedThinking) startStreamingView();
+
+          // Add Clean Footer with Copy Button
+          const footer = document.createElement('div');
+          footer.className = 'answer-footer';
+          const copyBtn = document.createElement('button');
+          copyBtn.className = 'copy-btn';
+          copyBtn.type = 'button';
+          copyBtn.innerHTML = `
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span>Copy</span>`;
+          
+          copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(cleanAnswer(serverAnswer)).then(() => {
+              copyBtn.innerHTML = `
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span>Copied!</span>`;
+              setTimeout(() => {
+                copyBtn.innerHTML = `
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                  <span>Copy</span>`;
+              }, 1800);
+            });
+          });
+          footer.appendChild(copyBtn);
+          bubble.appendChild(footer);
+
+          // Add sources accordion
+          if (serverEvidence && serverEvidence.length > 0) {
+            const pages = [...new Set(serverEvidence.map(s => s.page).filter(Boolean))];
+            if (pages.length > 0) {
+              const expander = document.createElement('div');
+              expander.className = 'sources-expander';
+              
+              const toggleBtn = document.createElement('button');
+              toggleBtn.type = 'button';
+              toggleBtn.className = 'sources-toggle';
+              toggleBtn.innerHTML = `📖 Referenced in notes (Page ${pages.join(', ')}) ▾`;
+
+              const sourcesWrap = document.createElement('div');
+              sourcesWrap.className = 'sources-content';
+              sourcesWrap.style.display = 'none';
+
+              serverEvidence.slice(0, 3).forEach(src => {
+                const sc = document.createElement('div');
+                sc.className = 'source-chip';
+                sc.innerHTML = `
+                  <div class="source-header-row">
+                    <span class="source-page-label">Page ${src.page} ${src.topic ? '(' + escapeHtml(src.topic) + ')' : ''}</span>
+                    <button type="button" class="source-view-full-btn">View full page</button>
+                  </div>
+                  <div>${escapeHtml(src.content ? src.content.substring(0, 200) + '…' : '')}</div>
+                `;
+                const btn = sc.querySelector('.source-view-full-btn');
+                if (btn) {
+                  btn.addEventListener('click', () => openSourcePage(src.page));
+                }
+                sourcesWrap.appendChild(sc);
+              });
+
+              toggleBtn.addEventListener('click', () => {
+                const isOpen = sourcesWrap.style.display === 'flex';
+                sourcesWrap.style.display = isOpen ? 'none' : 'flex';
+                toggleBtn.innerHTML = `📖 Referenced in notes (Page ${pages.join(', ')}) ${isOpen ? '▾' : '▴'}`;
+                scrollDown();
+              });
+
+              expander.appendChild(toggleBtn);
+              expander.appendChild(sourcesWrap);
+              bubble.appendChild(expander);
+            }
+          }
+
+          scrollDown();
+
+          saveSession({
+            id: 'sess_' + Date.now(),
+            question: q,
+            answer: cleanAnswer(serverAnswer),
+            evidence: serverEvidence,
+            timestamp: Date.now()
+          });
+        }
+      }
+    } catch(err) {
+      console.warn('Stream failed, trying fallback…', err);
+    }
+
+    // Fallback if needed
+    if (!querySuccess) {
+      try {
+        const fallbackRes = await fetch('/api/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: effectiveQuery, mode: effectiveMode })
+        });
+        if (fallbackRes.ok) {
+          const data = await fallbackRes.json();
+          thinkRow.remove();
+
+          const answerRow = document.createElement('div');
+          answerRow.className = 'row-assistant';
+          answerRow.appendChild(createAvatar(true));
+
+          const bubble = createAnswerBubble(data.answer || 'No answer found.', data.evidence || []);
+          answerRow.appendChild(bubble);
+          thread.appendChild(answerRow);
+          scrollDown();
+
+          saveSession({
+            id: 'sess_' + Date.now(),
+            question: q,
+            answer: cleanAnswer(data.answer),
+            evidence: data.evidence || [],
+            timestamp: Date.now()
+          });
+          querySuccess = true;
+        }
+      } catch(e) {
+        console.error('Fallback query error:', e);
+      }
+    }
+
+    if (!querySuccess) {
+      thinkRow.remove();
+      const errRow = document.createElement('div');
+      errRow.className = 'row-assistant';
+      errRow.appendChild(createAvatar(true));
+      errRow.innerHTML += `
+        <div class="answer-bubble">
+          <p>I couldn't reach the study assistant server right now. Please ensure the backend is running and try again.</p>
+        </div>`;
+      thread.appendChild(errRow);
+      scrollDown();
+    }
+
+    sendBtn.disabled = false;
+    input.focus();
+  }
+
+  // Event Listeners
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    ask(input.value);
+  });
+
+  suggestions.addEventListener('click', (e) => {
+    const pill = e.target.closest('.pill');
+    if (pill) ask(pill.textContent.trim());
+  });
+
+  suggestBtn.addEventListener('click', () => {
+    input.focus();
+    if (!suggestions.parentNode) {
+      thread.insertBefore(suggestions, thread.firstChild.nextSibling);
+      scrollDown();
+    }
+  });
+
+  newChatBtn.addEventListener('click', () => {
+    if (window.innerWidth < 900) drawer.classList.remove('open');
+    resetChat();
+  });
+
+  drawerToggle.addEventListener('click', () => drawer.classList.add('open'));
+  closeDrawer.addEventListener('click', () => drawer.classList.remove('open'));
+  clearHistoryBtn.addEventListener('click', clearAllHistory);
+
+  closeSourceModal.addEventListener('click', () => sourceModal.classList.remove('open'));
+  sourceModal.addEventListener('click', (e) => {
+    if (e.target === sourceModal) sourceModal.classList.remove('open');
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      sourceModal.classList.remove('open');
+      drawer.classList.remove('open');
+    }
+  });
+
+  document.querySelectorAll('.speed-btn:not(:disabled)').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.speed-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeMode = btn.getAttribute('data-mode') || 'fast';
+    });
+  });
+
+  renderDrawer();
+  loadSampleQuestions();
+})();
+</script>
+
 </body>
 </html>
