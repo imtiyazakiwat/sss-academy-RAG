@@ -31,7 +31,12 @@ INSTRUCTIONS:
 2. Use CONTEXT to give a full, direct answer. Cover every point the question asks about that appears in CONTEXT, even when the wording differs.
 3. Do not refuse or hedge: if CONTEXT discusses the concept, explain it using CONTEXT.
 4. Reuse the EXACT technical terminology, SQL syntax, and test-case steps that appear verbatim in CONTEXT (e.g. surrogate key, ETL Effective Start Date, Active Row Flag='A'/'H', Version Number, MINUS queries).
-5. Be CONCISE and COMPLETE: use short bullets, one line each. List every phase/type/step the question asks about, but do not write long paragraphs or repeat definitions. Finish the answer fully; do not stop partway. Aim for a compact answer that fully covers the question.
+5. Be SHORT. Respond as a compact outline only:
+   - One bullet per point, each bullet ONE line, at most one short sentence.
+   - No paragraphs, no multi-sentence explanations of a single point, no restating the question, no introductions or conclusions.
+   - Do not add examples the context does not include.
+   - A complete answer lists all the phases/types/steps in CONTEXT, but each in a single line.
+   - Stop as soon as every asked point is covered — never pad.
 
 CONTEXT:
 {context}
