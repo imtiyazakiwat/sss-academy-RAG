@@ -339,6 +339,101 @@ def scrub_answer(text: str) -> str:
     return "\n".join(ln for ln in kept if ln.strip() or ln == "").strip()
 
 
+def build_context(context_chunks, question=""):
+    """Assemble the material for the prompt, adaptively.
+
+    Three rules, each earning its keep:
+
+    1. Broad question -> whole section. "What are joins?" must see all seven
+       join types, which is the full 2400-char section.
+    2. Narrow question -> focused window. "What is a view?" needs the
+       matched fragment and the section's opening line, not the whole
+       section. This is where the prefill saving comes from, since prefill
+       cost scales with context length.
+    3. Skip near-duplicate sections. These notes teach several topics twice,
+       and the top two hits are often the same material from two pages
+       (measured Jaccard 0.99+), which would waste the second slot.
+    """
+    blocks, budget = [], config.MAX_CONTEXT_CHARS
+    top_heading = context_chunks[0].get("heading", "") if context_chunks else ""
+    # A comparison is answered as a table, and a table needs every row, so
+    # it counts as broad and is never trimmed.
+    broad = (is_broad_question(question)
+             or is_comparison_question(question, top_heading))
+    kept = []
+
+    for c in (context_chunks or [])[:config.TOP_K_CONTEXT]:
+        if budget <= 0:
+            break
+        parent = c.get("content") or ""
+        if not parent:
+            continue
+        if any(_jaccard(parent, prev) >= config.CONTEXT_DEDUPE_JACCARD
+               for prev in kept):
+            continue
+
+        # Trim only when it is safe: the question is not asking for a set,
+        # the section is large, AND retrieval matched one LABELLED sub-item
+        # rather than the section opening. That last condition matters:
+        # "What is normalization?" reads narrow by phrasing but its answer
+        # must name 1NF, 2NF, 3NF and BCNF, and its match is the section
+        # opening, so it still gets the whole section.
+        focusable = (
+            not broad
+            and len(parent) > config.CONTEXT_FOCUS_CHARS
+            and bool((c.get("label") or "").strip())
+        )
+        if focusable:
+            content = _focus_window(
+                parent, c.get("child_content") or "",
+                config.CONTEXT_FOCUS_CHARS, config.CONTEXT_PREAMBLE_CHARS,
+            )
+        else:
+            content = parent
+        content = content[:budget]
+        if not content:
+            continue
+
+        heading = c.get("heading") or c.get("topic") or ""
+        blocks.append(f"[{heading}]\n{content}" if heading else content)
+        kept.append(parent)
+        budget -= len(content)
+
+    return "\n\n---\n\n".join(blocks)
+
+
+def build_user_message(question, context):
+    """The user turn: material first, then the question.
+
+    Material comes first so two questions about the same section share a long
+    token prefix and the KV cache can be reused. A multi-part question gets its
+    parts listed back as a checklist, because both models otherwise answered
+    only the first part of every bundled question.
+    """
+    parts = question_parts(question)
+    if parts:
+        asks = "\n".join(f"{i}. {p}" for i, p in enumerate(parts, 1))
+        ask_block = (
+            f"{question}\n\n"
+            f"This question has {len(parts)} parts. Answer every one, each "
+            f"under its own short heading:\n{asks}"
+        )
+    else:
+        ask_block = question
+    # The material is wrapped in a tag rather than labelled in plain text: a
+    # label like "KNOWLEDGE:" gets echoed back as a heading in the answer.
+    return (f"<material>\n{context}\n</material>\n\n{ask_block}"
+            if context else ask_block)
+
+
+def wants_table(question, context_chunks):
+    """Whether this answer should be a comparison table."""
+    top = context_chunks[0] if context_chunks else {}
+    heading = top.get("heading", "")
+    return (is_comparison_question(question, heading)
+            and material_supports_table(heading, top.get("content", "")))
+
+
 def build_system_prompt(style="grounded", mode="fast", table=False):
     """Static per (style, mode, table). Never contains retrieved text, so it
     stays byte-identical across requests and its KV cache can be reused."""
@@ -394,66 +489,7 @@ class LocalLLM:
 
     # -- prompt assembly -------------------------------------------------
     def _build_context(self, context_chunks, question=""):
-        """Assemble the material for the prompt, adaptively.
-
-        Three rules, each earning its keep:
-
-        1. Broad question -> whole section. "What are joins?" must see all seven
-           join types, which is the full 2400-char section.
-        2. Narrow question -> focused window. "What is a view?" needs the
-           matched fragment and the section's opening line, not the whole
-           section. This is where the prefill saving comes from, since prefill
-           cost scales with context length.
-        3. Skip near-duplicate sections. These notes teach several topics twice,
-           and the top two hits are often the same material from two pages
-           (measured Jaccard 0.99+), which would waste the second slot.
-        """
-        blocks, budget = [], config.MAX_CONTEXT_CHARS
-        top_heading = context_chunks[0].get("heading", "") if context_chunks else ""
-        # A comparison is answered as a table, and a table needs every row, so
-        # it counts as broad and is never trimmed.
-        broad = (is_broad_question(question)
-                 or is_comparison_question(question, top_heading))
-        kept = []
-
-        for c in (context_chunks or [])[:config.TOP_K_CONTEXT]:
-            if budget <= 0:
-                break
-            parent = c.get("content") or ""
-            if not parent:
-                continue
-            if any(_jaccard(parent, prev) >= config.CONTEXT_DEDUPE_JACCARD
-                   for prev in kept):
-                continue
-
-            # Trim only when it is safe: the question is not asking for a set,
-            # the section is large, AND retrieval matched one LABELLED sub-item
-            # rather than the section opening. That last condition matters:
-            # "What is normalization?" reads narrow by phrasing but its answer
-            # must name 1NF, 2NF, 3NF and BCNF, and its match is the section
-            # opening, so it still gets the whole section.
-            focusable = (
-                not broad
-                and len(parent) > config.CONTEXT_FOCUS_CHARS
-                and bool((c.get("label") or "").strip())
-            )
-            if focusable:
-                content = _focus_window(
-                    parent, c.get("child_content") or "",
-                    config.CONTEXT_FOCUS_CHARS, config.CONTEXT_PREAMBLE_CHARS,
-                )
-            else:
-                content = parent
-            content = content[:budget]
-            if not content:
-                continue
-
-            heading = c.get("heading") or c.get("topic") or ""
-            blocks.append(f"[{heading}]\n{content}" if heading else content)
-            kept.append(parent)
-            budget -= len(content)
-
-        return "\n\n---\n\n".join(blocks)
+        return build_context(context_chunks, question)
 
     def _render(self, messages, add_generation_prompt):
         """Apply the chat template with reasoning disabled where supported.
@@ -509,37 +545,13 @@ class LocalLLM:
         # A comparison gets a table. The heading is consulted as well as the
         # question, so "Star Schema vs Snow Flake Schema" is tabulated even when
         # the student phrases it without the word "difference".
-        top = context_chunks[0] if context_chunks else {}
-        top_heading = top.get("heading", "")
         # Tabulate only when the question asks for a comparison AND the material
         # actually holds one; otherwise the model invents rows to fill it.
-        table = (is_comparison_question(question, top_heading)
-                 and material_supports_table(top_heading, top.get("content", "")))
+        table = wants_table(question, context_chunks)
         system = build_system_prompt(style=style, mode=mode, table=table)
-        context = self._build_context(context_chunks, question=question)
+        context = build_context(context_chunks, question=question)
 
-        # The material is wrapped in a tag rather than given a plain-text label.
-        # A label like "KNOWLEDGE:" gets echoed back as a heading in the answer;
-        # models reproduce tags far less often, and the rules forbid it outright.
-        # Multi-part questions get their parts listed back explicitly. Both
-        # models answered only the first part of every bundled question
-        # ("...Which table is loaded first and why?"), and a checklist in the
-        # user turn fixes that far more reliably than a general instruction.
-        parts = question_parts(question)
-        if parts:
-            asks = "\n".join(f"{i}. {p}" for i, p in enumerate(parts, 1))
-            ask_block = (
-                f"{question}\n\n"
-                f"This question has {len(parts)} parts. Answer every one, each "
-                f"under its own short heading:\n{asks}"
-            )
-        else:
-            ask_block = question
-
-        user = (
-            f"<material>\n{context}\n</material>\n\n{ask_block}"
-            if context else ask_block
-        )
+        user = build_user_message(question, context)
 
         full_text = self._render(
             [{"role": "system", "content": system},
@@ -635,16 +647,19 @@ class LocalLLM:
                     if ttft is None:
                         ttft = (time.time() - t0) * 1000
 
+                    # The first line goes out token by token so TTFT is
+                    # unaffected. NOTHING empty may be yielded mid-stream: the
+                    # empty string is the completion sentinel, and yielding it
+                    # here truncated every answer to its first line.
                     if not first_line_done:
-                        buf += resp.text
-                        if "\n" in buf:
-                            head, _, buf = buf.partition("\n")
+                        if "\n" in resp.text:
+                            head, _, buf = resp.text.partition("\n")
+                            if head:
+                                yield head, ttft
+                            yield "\n", ttft
                             first_line_done = True
-                            out = scrub_line(head)
-                            yield (out + "\n") if out else "", ttft
                         else:
                             yield resp.text, ttft
-                            buf = ""      # already emitted
                         continue
 
                     buf += resp.text

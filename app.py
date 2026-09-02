@@ -16,6 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from config import HOST, PORT
+from models.local_llm import scrub_answer
 from rag.rag_system import RAGSystem
 
 app = FastAPI(title="ETL Interview RAG Assistant", version="2.0.0")
@@ -179,9 +180,12 @@ def ask_question_stream(req: QueryRequest):
             full.append(tok)
             yield f"data: {json.dumps({'type': 'token', 'text': tok})}\n\n".encode("utf-8")
 
+        # The first line is streamed unscrubbed to keep time-to-first-token
+        # low, so the assembled answer is scrubbed here before it is saved to
+        # the student's history.
         done = {
             "type": "done",
-            "answer": "".join(full),
+            "answer": scrub_answer("".join(full)),
             "ttft_ms": round(first_ttft_ms or 0, 2),
             "generation_ms": round((time.time() - t0) * 1000, 2),
             "total_ms": round((time.time() - t0) * 1000, 2),

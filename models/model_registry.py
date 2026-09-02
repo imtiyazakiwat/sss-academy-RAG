@@ -72,7 +72,14 @@ class ModelRegistry:
                 spec = self.specs[mid]
                 t0 = time.time()
                 print(f"Loading model '{mid}' ({spec['repo']})...")
-                llm = LocalLLM(model_path=spec["repo"])
+                if spec.get("provider") == "groq":
+                    from models.remote_llm import RemoteLLM
+                    llm = RemoteLLM(
+                        model_path=spec["repo"],
+                        reasoning_effort=spec.get("reasoning_effort"),
+                    )
+                else:
+                    llm = LocalLLM(model_path=spec["repo"])
                 if llm.is_loaded:
                     llm.warmup()             # prefill the cacheable prefixes
                 self._loaded[mid] = llm
@@ -100,6 +107,8 @@ class ModelRegistry:
         """Public model list for the UI."""
         out = []
         for mid, spec in self.specs.items():
+            provider = spec.get("provider", "local")
+            llm = self._loaded.get(mid)
             out.append({
                 "id": mid,
                 "label": spec.get("label", mid),
@@ -108,8 +117,15 @@ class ModelRegistry:
                 "accuracy": spec.get("accuracy"),
                 "ttft_ms": spec.get("ttft_ms"),
                 "answer_words": spec.get("answer_words"),
+                "provider": provider,
+                # Lets the UI mark which models send questions off the device.
+                "remote": provider != "local",
                 "is_default": mid == self.default_id,
                 "loaded": self.is_loaded(mid),
                 "load_ms": round(self._load_ms.get(mid, 0.0)),
+                "error": getattr(llm, "last_error", None) if llm else None,
+                # A remote model with no key configured should not be offered.
+                "available": (provider == "local"
+                              or bool(config.groq_api_key())),
             })
         return out

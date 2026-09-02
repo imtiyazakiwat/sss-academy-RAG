@@ -7,6 +7,38 @@ import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
+def _load_dotenv(path=None):
+    """Read .env into the environment without adding a dependency.
+
+    Values already set in the environment win, so a rotated key can be exported
+    for one run without editing the file. Never logged.
+    """
+    path = path or os.path.join(BASE_DIR, ".env")
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip().strip("'\"")
+                if key and key not in os.environ:
+                    os.environ[key] = value
+    except OSError:
+        pass
+
+
+_load_dotenv()
+
+
+def groq_api_key():
+    """Read at call time so the key can be rotated without a code change."""
+    return (os.environ.get("GROQ_API_KEY") or "").strip()
+
 # ---------------------------------------------------------------------------
 # Knowledge Base
 # ---------------------------------------------------------------------------
@@ -58,7 +90,31 @@ MODELS = {
         "answer_words": 92,
         "default": False,
     },
+    # Runs on Groq, so it needs internet and a GROQ_API_KEY, and the question
+    # leaves this machine. Much larger model than anything that fits locally.
+    "best-online": {
+        "provider": "groq",
+        "repo": "qwen/qwen3.8-27b",
+        "label": "Best (online)",
+        "blurb": "A 27B model on Groq. Needs internet; questions leave this device.",
+        "accuracy": "-",
+        "ttft_ms": None,
+        "answer_words": None,
+        "default": False,
+    },
 }
+
+# ---------------------------------------------------------------------------
+# Groq
+# ---------------------------------------------------------------------------
+GROQ_TIMEOUT_S = 45
+# Reasoning models spend part of the budget thinking before answering, and
+# gpt-oss-120b was observed consuming an entire 700-token budget on reasoning
+# and returning empty content. Remote budgets are scaled up to leave room.
+GROQ_TOKEN_HEADROOM = 2.0
+# Alternatives verified working on the free tier: openai/gpt-oss-120b (set
+# reasoning_effort="low" via the model entry), openai/gpt-oss-20b (fastest,
+# ~970 tok/s), qwen/qwen3.6-27b (emits reasoning blocks, stripped automatically).
 
 DEFAULT_MODEL_ID = next(
     (k for k, v in MODELS.items() if v.get("default")), next(iter(MODELS))

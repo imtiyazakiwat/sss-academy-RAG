@@ -229,6 +229,8 @@
   /* solid dot = weights already in memory, so no load wait */
   .model-btn.loaded .dot{ opacity:1; }
   .model-btn.loading .dot{ animation:pulse 1s ease-in-out infinite; }
+  /* Cloud marks a model that answers over the internet rather than on-device. */
+  .model-btn .cloud{ font-size:11px; line-height:1; opacity:.9; }
   @keyframes pulse{ 0%,100%{opacity:.25;} 50%{opacity:1;} }
 
   .model-note{
@@ -741,17 +743,24 @@
     const host = document.getElementById('modelSelect');
     if (!host) return;
     host.innerHTML = '';
-    availableModels.forEach(m => {
+    // A model with no API key configured is not offered at all.
+    availableModels.filter(m => m.available !== false).forEach(m => {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'model-btn' + (m.id === activeModel ? ' active' : '')
-                    + (m.loaded ? ' loaded' : '');
+                    + (m.loaded ? ' loaded' : '')
+                    + (m.remote ? ' remote' : '');
       btn.dataset.model = m.id;
       // A hollow dot means the weights are not in memory yet, so the first
       // question with that model waits a couple of seconds for it to load.
-      btn.innerHTML = `<span class="dot"></span>${m.label}`;
-      btn.title = `${m.blurb}  Accuracy on our test set: ${m.accuracy}.`
-                + (m.loaded ? '' : '  Loads on first use.');
+      // Remote models show a cloud instead, because the tradeoff is not load
+      // time but that the question leaves this device.
+      const mark = m.remote ? '<span class="cloud">☁</span>' : '<span class="dot"></span>';
+      btn.innerHTML = `${mark}${m.label}`;
+      btn.title = m.remote
+        ? `${m.blurb}  Runs over the internet, so questions are sent to Groq. The other models work offline.`
+        : `${m.blurb}  Accuracy on our test set: ${m.accuracy}.`
+          + (m.loaded ? '' : '  Loads on first use.');
       btn.addEventListener('click', () => {
         activeModel = m.id;
         localStorage.setItem('sss_model', m.id);
@@ -1013,7 +1022,8 @@
     if (usedModel) {
       const by = document.createElement('div');
       by.className = 'answered-by';
-      by.innerHTML = `<span class="dot"></span>${usedModel.label}`;
+      by.innerHTML = (usedModel.remote ? '<span class="cloud">\u2601</span>'
+                                       : '<span class="dot"></span>') + usedModel.label;
       bubble.appendChild(by);
     }
 
@@ -1283,7 +1293,8 @@
           if (usedModel) {
             const by = document.createElement('div');
             by.className = 'answered-by';
-            by.innerHTML = `<span class="dot"></span>${usedModel.label}`;
+            by.innerHTML = (usedModel.remote ? '<span class="cloud">\u2601</span>'
+                                       : '<span class="dot"></span>') + usedModel.label;
             bubble.appendChild(by);
           }
 
