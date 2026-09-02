@@ -5,6 +5,7 @@ Loads the persisted index once at startup, keeps the local LLM resident,
 and wires together: hybrid retrieval -> confidence routing -> generation.
 """
 
+import json
 import time
 import os
 import sys
@@ -17,7 +18,7 @@ from knowledge_base.vector_store import VectorStore
 from knowledge_base.bm25_index import BM25Index
 from knowledge_base.retriever import HybridRetriever
 from knowledge_base.answer_generator import AnswerGenerator
-from models.local_llm import LocalLLM
+from models.model_registry import ModelRegistry
 
 
 class RAGSystem:
@@ -36,48 +37,100 @@ class RAGSystem:
                 "BM25 index not found. Run: python knowledge_base/build_index.py"
             )
 
+        # Parent sections for small-to-big expansion. Children are what get
+        # matched; parents are what the LLM reads.
+        if not os.path.exists(config.PARENTS_PATH):
+            raise RuntimeError(
+                "Parent sections not found. Run: python knowledge_base/build_index.py"
+            )
+        with open(config.PARENTS_PATH, "r", encoding="utf-8") as f:
+            self.parents = json.load(f)
+        print(f"Loaded {len(self.parents)} parent sections")
+
         self.retriever = HybridRetriever(
             embeddings=self.embeddings,
             vector_store=self.vector_store,
             bm25=self.bm25,
+            parents=self.parents,
             vector_top_k=config.TOP_K_VECTOR,
             bm25_top_k=config.TOP_K_BM25,
             final_top_k=config.TOP_K_FINAL,
         )
 
-        self.llm = LocalLLM() if load_llm else None
-        self.generator = AnswerGenerator(self.llm) if self.llm else None
+        # Selectable generation models. The default is loaded now; the others
+        # load on first use so startup stays quick.
+        self.registry = ModelRegistry() if load_llm else None
+        self.generator = AnswerGenerator()
+        if self.registry:
+            if config.PRELOAD_ALL_MODELS:
+                self.registry.preload()
+            else:
+                self.registry.get(self.registry.default_id)
 
-    def answer(self, question, mode="fast"):
+        # Force the lazy retrieval models to load and run one throwaway pass, so
+        # the first real question does not pay the ~9 s embedding-model load.
+        warm_ms = self.retriever.warmup()
+        print(f"Warmup complete in {warm_ms:.0f} ms")
+
+    @property
+    def llm(self):
+        """The default model. Kept so existing scripts and benchmark.py, which
+        assume a single resident model, continue to work."""
+        if not self.registry:
+            return None
+        return self.registry.get(self.registry.default_id)[1]
+
+    def pick_model(self, model_id=None):
+        """Resolve a requested model id to (id, llm), loading it if needed."""
+        if not self.registry:
+            return None, None
+        return self.registry.get(model_id)
+
+    @staticmethod
+    def evidence(retrieved):
+        """Citable evidence for the UI. `content` here is the matched fragment,
+        not the whole parent section, so the panel stays readable."""
+        return [{
+            "topic": r.get("topic", ""),
+            "heading": r.get("heading", ""),
+            "page": r.get("page"),
+            "page_label": r.get("page_label", ""),
+            "content": r.get("child_content") or r.get("content", ""),
+            "score": r.get("score"),
+            "vector_score": r.get("vector_score"),
+            "bm25_score": r.get("bm25_score"),
+            "lexical": r.get("lexical"),
+        } for r in retrieved]
+
+    def answer(self, question, mode="fast", model_id=None):
         """Full pipeline. Returns a structured result dict."""
         t0 = time.time()
 
         retrieved, breakdown = self.retriever.retrieve(question)
         retrieve_ms = (time.time() - t0) * 1000
 
-        top_score = retrieved[0]["score"] if retrieved else 0.0
-
-        gen = self.generator.generate(question, retrieved, top_score, mode=mode) if self.generator else {
-            "answer": retrieved[0]["content"] if retrieved else "This information is not available in the knowledge base.",
-            "mode": "extracted",
-            "generation_ms": 0.0,
-            "ttft_ms": 0.0,
-        }
+        resolved_id, llm = self.pick_model(model_id)
+        if llm:
+            gen = self.generator.generate(question, retrieved, mode=mode, llm=llm)
+        else:
+            gen = {
+                "answer": retrieved[0]["content"] if retrieved else "",
+                "mode": "extracted",
+                "style": "none",
+                "confidence": 0.0,
+                "generation_ms": 0.0,
+                "ttft_ms": 0.0,
+            }
 
         total_ms = (time.time() - t0) * 1000
         return {
             "question": question,
             "answer": gen["answer"],
             "mode": gen["mode"],
-            "confidence": round(top_score, 4),
-            "evidence": [{
-                "topic": r["topic"],
-                "page": r["page"],
-                "content": r["content"],
-                "score": r["score"],
-                "vector_score": r["vector_score"],
-                "bm25_score": r["bm25_score"],
-            } for r in retrieved],
+            "style": gen.get("style", ""),
+            "model": resolved_id or "",
+            "confidence": gen.get("confidence", 0.0),
+            "evidence": self.evidence(retrieved),
             "retrieval_ms": round(retrieve_ms, 2),
             "generation_ms": round(gen.get("generation_ms", 0.0), 2),
             "ttft_ms": round(gen.get("ttft_ms", 0.0), 2),
@@ -85,22 +138,20 @@ class RAGSystem:
             "breakdown": breakdown,
         }
 
-    def stream(self, question):
-        """For streaming: yields (event_type, payload)."""
-        from models.local_llm import stream_generate  # noqa
-        from fastapi.responses import StreamingResponse  # noqa
-        # Not implemented in core; the app layers SSE on top of answer().
-        return self.answer(question)
+    def models(self):
+        return self.registry.describe() if self.registry else []
 
     def health(self):
         return {
             "status": "healthy",
             "chunks": self.vector_store.size,
+            "parent_sections": len(self.parents),
             "embedding_model": config.EMBEDDING_MODEL,
-            "generation_model": config.LOCAL_MODEL,
-            "llm_loaded": bool(self.llm and self.llm.is_loaded),
-            "high_conf": config.HIGH_CONFIDENCE,
-            "low_conf": config.LOW_CONFIDENCE,
+            "models": self.models(),
+            "default_model": self.registry.default_id if self.registry else None,
+            "draft_model": config.DRAFT_MODEL,
+            "grounded_lexical": config.GROUNDED_LEXICAL,
+            "open_lexical": config.OPEN_LEXICAL,
         }
 
 
@@ -112,8 +163,8 @@ if __name__ == "__main__":
             break
         if not q:
             continue
-        t0 = time.time()
         r = system.answer(q)
-        print(f"\n[confidence={r['confidence']} mode={r['mode']} "
-              f"total={r['total_ms']}ms retrieve={r['retrieval_ms']}ms]")
-        print(r["answer"][:800])
+        print(f"\n[confidence={r['confidence']} style={r['style']} "
+              f"mode={r['mode']} total={r['total_ms']}ms "
+              f"retrieve={r['retrieval_ms']}ms]")
+        print(r["answer"][:1200])

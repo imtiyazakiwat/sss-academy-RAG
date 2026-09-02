@@ -1,148 +1,586 @@
 """
-Local generation model using the RAW (non-finetuned) Qwen 2.5 Instruct via MLX.
-No LoRA adapter. RAG injects the knowledge base context at inference time,
-so the model answers grounded in the PDF.
+Local generation via MLX, using the raw (non-finetuned) instruct model.
+RAG supplies the classroom notes at inference time.
 
-The model is loaded once at startup and kept resident in memory.
+Two things here are deliberate:
+
+1. Three answer STYLES, not one.
+   The previous single prompt told the model both to match the notes exactly
+   and to "answer creatively" from its own knowledge. Those instructions fight
+   each other, and the model resolved the conflict by inventing generic
+   phrasing ("Returns rows when there is a match in both tables") in place of
+   the notes' own wording ("retrieve the matching rows ... used equal to (=)
+   operator in a condition"). Grounding strength now selects one coherent
+   instruction set instead.
+
+2. The static instructions are a CACHEABLE PREFIX.
+   Retrieved context used to be interpolated into the system message, which
+   made every request's prefix unique and defeated prompt caching. Context now
+   lives in the user message, so the system block is byte-identical across
+   requests and its KV cache is reused via LRUPromptCache, cutting prefill work
+   off the time-to-first-token.
 """
 
+import re
 import time
-from mlx_lm import load, stream_generate, generate
-from mlx_lm.sample_utils import make_sampler
 
-from config import (
-    LOCAL_MODEL,
-    MAX_TOKENS,
-    MAX_TOKENS_LARGE,
-    MAX_CONTEXT_CHARS,
-    TEMPERATURE,
-    TOP_K_CONTEXT,
+import mlx.core as mx
+from mlx_lm import load, stream_generate, generate
+from mlx_lm.models.cache import LRUPromptCache, make_prompt_cache
+from mlx_lm.sample_utils import make_logits_processors, make_sampler
+
+# Imported as a module, not as names, so that values can be overridden at
+# runtime (the benchmark swaps the model and forces greedy decoding). Importing
+# the names directly would bind them at import time and silently ignore the
+# override.
+import config
+
+# Voice anchors taken verbatim from the notes. They teach the model the
+# register to imitate when it must answer something the notes do not cover:
+# "By using <thing> we can <do>", a Syntax: line, then an Example:.
+_STYLE_EXEMPLARS = """Study how these notes are written, and write in the same voice:
+
+  Join
+  By using the join function we can combine the row from two or multiple table based on common data type in attribute (column).
+
+  DELETE
+  By using this delete command we can delete the row from table.
+  Syntax:
+  DELETE FROM <TABLE_NAME> WHERE <CONDITION>;
+  Example:
+  DELETE FROM COLLAGE_1 WHERE SLNO=4;
+"""
+
+_COMMON_RULES = """You are an ETL Testing and SQL interview preparation assistant for SSS Academy students, answering from their classroom notes.
+
+ABSOLUTE RULES:
+- Never output the words "material", "KNOWLEDGE", or any tag such as <material>. Never mention notes, context, sources, documents, pages, or availability. Never say "based on the provided context", "according to the notes", "the context does not mention", or "this information is not available". Answer as a knowledgeable instructor speaking directly.
+- Never repeat or rephrase the question back before answering.
+- COMPLETENESS IS THE FIRST PRIORITY. Before answering, scan for any list of named items: numbered (1. 2. 3.), lettered (a) b) c)), or named types, forms, levels, stages, or commands. Every single one MUST appear in your answer with its name and a short meaning. An answer that names three of seven joins, or defines normalization without naming 1NF, 2NF, 3NF and BCNF, is wrong even if what it says is true.
+- Use the vocabulary and SQL dialect of the notes: Oracle-style SQL, SCOTT.EMP style table names, terms like de-normalized, surrogate key, initial and incremental load.
+- Cover every part the question asks for. If a topic has numbered or lettered sub-types, list all of them, not a sample."""
+
+_STYLE_GROUNDED = """The material provided fully covers this question.
+
+- Answer strictly from the material. Do not add tools, concepts, or claims that are absent from it.
+- Reuse its exact terms, definitions, and SQL. Do not paraphrase technical wording into generic textbook phrasing. If it says "de-normalized", write de-normalized. If it names forms 1NF, 2NF, 3NF, BCNF, name them.
+- If the material lists sub-types (a, b, c ... or 1, 2, 3), give EVERY one with its one-line meaning. Listing only some of them is a wrong answer."""
+
+_STYLE_SCENARIO = """This is a scenario or applied question. The material provided contains the mechanism that answers it.
+
+- Identify which concept from the material applies, name it using the notes' own term, then apply it to the specifics asked.
+- Walk through what happens concretely, in order.
+- Ground every technical claim in the material; supply only the reasoning that connects it to the scenario."""
+
+_STYLE_OPEN = """The material provided is related background but does not directly answer this question.
+
+- Answer it anyway, accurately and usefully, from your own expertise. Never refuse and never point out the gap.
+- Where the material supplies a relevant term, definition, or convention, prefer it over your own wording so the answer stays consistent with what the student has been taught.
+""" + _STYLE_EXEMPLARS
+
+_FAST_FORMAT = """FORMAT: one line of direct answer, then a bullet list. One point per bullet, one line each. No preamble, no conclusion, no restating the question.
+
+Brevity applies to each LINE, never to the NUMBER of points. Every named item in the answer gets its own bullet. Aim for 60-160 words: an answer under 30 words has almost certainly dropped something that was asked for."""
+
+# Comparison questions ("difference between X and Y") are what interviewers ask
+# most, and the notes themselves store these as two-column tables. A markdown
+# table reads the way the student's own notes do, and it makes an omission
+# obvious: a row with one side blank is visibly incomplete, whereas alternating
+# prose bullets hide it.
+_TABLE_FORMAT = """FORMAT: a markdown comparison table and nothing before it. Follow this example exactly, including the header row style:
+
+| Aspect | DELETE | TRUNCATE |
+|---|---|---|
+| Command type | DML | DDL |
+| WHERE clause | Supported | Not supported |
+| Rollback | Can be rolled back | Cannot be rolled back |
+| Performance | Low | High |
+
+RULES FOR THE TABLE:
+- The second and third header cells are the two real names being compared, taken from the material. Never write a placeholder, never write angle brackets, and never write the word material or any tag.
+- The first column is a short aspect name, two or three words. Every aspect name must be DIFFERENT; never repeat one.
+- Each row states how the two sides DIFFER, so the two cells must not be identical. If a statement applies to both equally, leave it out of the table.
+- Only add a row when the material supports BOTH cells. If it does not cover an aspect, omit that row entirely. A short table of solid rows is correct; a padded one is wrong.
+- A cell must never comment on the material itself. Phrases like "not documented", "not explicitly documented", "not mentioned", "not specified", "not stated", "not available", or "as documented in the notes" are forbidden anywhere in the table. If you were about to write one, delete that whole row.
+- Never add a "Documentation" row or any row about what is or is not written down. Rows describe the two things being compared, nothing else.
+- Keep each cell to a short phrase, not a sentence.
+- Include every point of difference the material gives, and nothing that is not about these two things.
+- If the material states a similarity, add one line under the table starting with "Similarity:".
+- No preamble, no conclusion, no restating the question."""
+
+_LARGE_FORMAT = """FORMAT: classroom-notes style. First line is **Main Answer:** followed by a one-line direct answer. Then expand with short bullets, and a Syntax: or Example: block with real SQL where it helps. Stop once everything asked is covered."""
+
+_STYLES = {
+    "grounded": _STYLE_GROUNDED,
+    "scenario": _STYLE_SCENARIO,
+    "open": _STYLE_OPEN,
+}
+_FORMATS = {"fast": _FAST_FORMAT, "large": _LARGE_FORMAT}
+
+# "difference between X and Y", "X vs Y", "compare X and Y"
+_COMPARISON_QUESTION = re.compile(
+    r"\b(difference|differences|differ|compare|comparison|contrast|"
+    r"distinguish|versus|vs\.?)\b|\bwhich\s+(one\s+)?is\s+better\b",
+    re.I,
 )
 
-# Flexible grounding prompt template.
-# NOTE: the LLM is instructed to use CONTEXT as the primary source of truth, but
-# to fall back to its own expert knowledge if the context lacks the answer.
-# It is explicitly told to avoid meta-phrases like "according to the context".
-_BASE_INSTRUCTIONS = """You are an expert ETL and SQL interview prep assistant. You provide clear, practical, and highly accurate answers, matching the concise and informative tone of the provided CONTEXT notes.
 
-RULES:
-- Never use phrases like "based on the provided context", "in the given context", or "according to the text". Just answer the question directly and naturally.
-- Use the CONTEXT as your primary source of truth, matching its exact terms, definitions, and SQL dialects.
-- If the CONTEXT does not fully contain the answer, you MUST use your own expert knowledge to write queries, explain concepts, and answer creatively. Do not say the information is not available; provide a helpful and accurate answer anyway.
-- Do not hedge or repeat the question.
-- Always aim to provide a working solution, SQL query, or explanation for any question asked.
+def is_comparison_question(question: str, heading: str = "") -> bool:
+    """True when the question is asking for a comparison.
 
-{detail}
+    The retrieved heading alone is NOT enough. Many topics are only written up
+    inside a comparison table, so "What is a Surrogate Key and why is it used?"
+    retrieves "PRIMARY KEY vs SURROGATE KEY" while asking about one thing.
+    Treating that as a comparison answered a question the student never asked and
+    dropped the "why is it used" part entirely. So a heading only triggers a
+    table when the question names BOTH sides of it."""
+    q = question or ""
+    if _COMPARISON_QUESTION.search(q):
+        return True
 
-CONTEXT:
-{context}
-"""
+    low = f" {heading} ".lower()
+    if " vs " not in low:
+        return False
+    left, _, right = low.partition(" vs ")
+    ql = q.lower()
 
-# "fast" mode: compact outline, one point per line, no padding.
-FAST_DETAIL = """FORMAT: concise bullet list only. One bullet per point, one line each, no paragraphs, no intro/conclusion, no examples not in CONTEXT, and no padding."""
+    def named(side):
+        # Match on the side's distinctive words, ignoring generic filler, so
+        # "star schema" matches "STAR SCHEMA" and "snow flake" matches
+        # "snowflake" once punctuation and spacing are dropped.
+        words = [w for w in re.findall(r"[a-z0-9]+", side)
+                 if w not in {"the", "a", "an", "and", "or", "of", "normal",
+                              "data", "table", "key", "schema", "query"}]
+        if not words:
+            return False
+        squashed = re.sub(r"[^a-z0-9]", "", ql)
+        return any(w in ql or w in squashed for w in words)
 
-# "large" mode: detailed like notes, but still start with the main answer.
-LARGE_DETAIL = """FORMAT: detailed like classroom notes, in short paragraphs and bullets. FIRST line must be: **Main Answer:** then a bold one-line summary of the direct answer. Then expand each point with CONTEXT's details, using its exact terms/SQL. Stay grounded; stop once all asked points are covered."""
+    return named(left) and named(right)
 
-PROMPTS = {
-    "fast": _BASE_INSTRUCTIONS.format(detail=FAST_DETAIL, context="{context}"),
-    "large": _BASE_INSTRUCTIONS.format(detail=LARGE_DETAIL, context="{context}"),
-}
+
+def material_supports_table(heading: str, content: str) -> bool:
+    """True when the retrieved material really is a two-sided comparison.
+
+    Asking for a table when the notes only hold two prose definitions makes the
+    model pad: for "difference between severity and priority" the notes give
+    just two sentences and one shared note, and the 3B filled the gap with rows
+    like "Documentation | Not explicitly documented", which both invents
+    content and talks about the material. Tabulate only where the notes
+    themselves tabulate."""
+    if " vs " in f" {heading} ".lower():
+        return True
+    # A rendered comparison always has paired "• Side: value" lines, so two
+    # distinct labels each appearing at least twice means it is genuinely
+    # two-sided.
+    labels = re.findall(r"^\s*•\s*([^:\n]{2,40}):", content or "", re.M)
+    counts = {}
+    for lab in labels:
+        counts[lab.strip().lower()] = counts.get(lab.strip().lower(), 0) + 1
+    return sum(1 for n in counts.values() if n >= 2) >= 2
+
+
+# A question is "broad" when it asks for a set rather than one fact, in which
+# case the whole section must be sent or the answer will drop items.
+_BROAD_QUESTION = re.compile(
+    r"\b(types?\s+of|kinds?\s+of|forms?\s+of|list|all\s+the|every|"
+    r"what\s+are|which\s+are|name\s+the|levels?\s+of|stages?\s+of|"
+    r"steps?\s+of|categor|life\s?cycle|explain\s+the|different)\b",
+    re.I,
+)
+
+# Plural technical nouns also imply a set is expected ("what are joins",
+# "unix commands you used"), even without one of the phrases above.
+_PLURAL_HINT = re.compile(
+    r"\b(joins|keys|constraints|commands|operators|functions|schemas|"
+    r"tables|types|forms|dimensions|defects|levels|stages|clauses)\b",
+    re.I,
+)
+
+
+def is_broad_question(question: str) -> bool:
+    q = question or ""
+    return bool(_BROAD_QUESTION.search(q) or _PLURAL_HINT.search(q))
+
+
+def _words(text):
+    return set(re.findall(r"[a-z0-9]+", (text or "").lower()))
+
+
+def _jaccard(a, b):
+    wa, wb = _words(a), _words(b)
+    if not wa or not wb:
+        return 0.0
+    return len(wa & wb) / len(wa | wb)
+
+
+def _focus_window(parent, child, limit, preamble_chars):
+    """Section opening plus the neighbourhood of the matched fragment.
+
+    The opening carries the definition ("Join / By using the join function we
+    can combine the row from two or multiple table..."), and the matched
+    fragment carries the specific detail the question asked about. Sending both
+    keeps a narrow answer correct while staying far below the full section."""
+    if not parent:
+        return ""
+    if len(parent) <= limit:
+        return parent
+
+    preamble = parent[:preamble_chars]
+    if not child:
+        return preamble + parent[preamble_chars:limit]
+
+    # Locate the fragment by its first line, which survives chunking intact.
+    probe = child.strip().split("\n")[0][:60]
+    at = parent.find(probe) if probe else -1
+    if at < 0:
+        return parent[:limit]
+
+    remaining = max(0, limit - len(preamble))
+    # Start a little before the fragment so its own sub-heading is included.
+    start = max(len(preamble), at - 120)
+    window = parent[start:start + remaining]
+    if start <= len(preamble):
+        return parent[:limit]
+    return f"{preamble}\n...\n{window}"
+
+
+def build_system_prompt(style="grounded", mode="fast", table=False):
+    """Static per (style, mode, table). Never contains retrieved text, so it
+    stays byte-identical across requests and its KV cache can be reused."""
+    return "\n\n".join([
+        _COMMON_RULES,
+        _STYLES.get(style, _STYLE_GROUNDED),
+        _TABLE_FORMAT if table else _FORMATS.get(mode, _FAST_FORMAT),
+    ])
 
 
 class LocalLLM:
-    def __init__(self, model_path=LOCAL_MODEL):
+    def __init__(self, model_path=None, draft_model_path=None):
+        model_path = model_path or config.LOCAL_MODEL
+        draft_model_path = draft_model_path or config.DRAFT_MODEL
         self.model_path = model_path
+        self.draft_model_path = draft_model_path
         self.model = None
         self.tokenizer = None
+        self.draft_model = None
         self.is_loaded = False
+        # Holds prefilled KV caches: the per-style system prefixes, plus recent
+        # full prompts so a follow-up on the same section reuses its prefill.
+        # Byte-capped because each entry is tens of MB.
+        self._prefix_cache = LRUPromptCache(
+            max_size=config.PROMPT_CACHE_ENTRIES,
+            max_bytes=config.PROMPT_CACHE_MAX_BYTES,
+        )
+        self._prefix_ids_by_system = {}
         self._load()
 
     def _load(self):
         try:
             t0 = time.time()
-            print(f"Loading local model '{self.model_path}' (RAW, no LoRA)...")
+            print(f"Loading local model '{self.model_path}'...")
             self.model, self.tokenizer = load(
                 self.model_path,
                 tokenizer_config={"trust_remote_code": True},
             )
-            load_ms = (time.time() - t0) * 1000
-            print(f"✅ Raw model loaded in {load_ms:.0f} ms")
+            print(f"Model loaded in {(time.time() - t0) * 1000:.0f} ms")
+            if self.draft_model_path:
+                # Optional speculative-decoding draft model: raises tokens/sec
+                # during decode at a small extra memory cost.
+                try:
+                    self.draft_model, _ = load(self.draft_model_path)
+                    print(f"Draft model loaded: {self.draft_model_path}")
+                except Exception as e:
+                    print(f"Draft model unavailable ({e}); continuing without it.")
+                    self.draft_model = None
             self.is_loaded = True
         except Exception as e:
             print(f"Failed to load local model: {e}")
             self.is_loaded = False
 
-    def _build_prompt(self, question, context_chunks, mode="fast"):
-        """Build the grounded generation prompt with a bounded context budget.
+    # -- prompt assembly -------------------------------------------------
+    def _build_context(self, context_chunks, question=""):
+        """Assemble the material for the prompt, adaptively.
 
-        Only the top chunk(s), truncated, are injected so that prefill (first
-        token) stays fast on local MPS hardware.
+        Three rules, each earning its keep:
+
+        1. Broad question -> whole section. "What are joins?" must see all seven
+           join types, which is the full 2400-char section.
+        2. Narrow question -> focused window. "What is a view?" needs the
+           matched fragment and the section's opening line, not the whole
+           section. This is where the prefill saving comes from, since prefill
+           cost scales with context length.
+        3. Skip near-duplicate sections. These notes teach several topics twice,
+           and the top two hits are often the same material from two pages
+           (measured Jaccard 0.99+), which would waste the second slot.
         """
-        context_blocks = []
-        budget = MAX_CONTEXT_CHARS
-        for c in (context_chunks or [])[:TOP_K_CONTEXT]:
+        blocks, budget = [], config.MAX_CONTEXT_CHARS
+        top_heading = context_chunks[0].get("heading", "") if context_chunks else ""
+        # A comparison is answered as a table, and a table needs every row, so
+        # it counts as broad and is never trimmed.
+        broad = (is_broad_question(question)
+                 or is_comparison_question(question, top_heading))
+        kept = []
+
+        for c in (context_chunks or [])[:config.TOP_K_CONTEXT]:
             if budget <= 0:
                 break
-            topic = f"[{c['topic']}] " if c.get("topic") else ""
-            page = f"(Page {c['page']})" if c.get("page") else ""
-            content = (c.get("content") or "")[:budget]
-            context_blocks.append(f"{topic}{page}\n{content}")
+            parent = c.get("content") or ""
+            if not parent:
+                continue
+            if any(_jaccard(parent, prev) >= config.CONTEXT_DEDUPE_JACCARD
+                   for prev in kept):
+                continue
+
+            # Trim only when it is safe: the question is not asking for a set,
+            # the section is large, AND retrieval matched one LABELLED sub-item
+            # rather than the section opening. That last condition matters:
+            # "What is normalization?" reads narrow by phrasing but its answer
+            # must name 1NF, 2NF, 3NF and BCNF, and its match is the section
+            # opening, so it still gets the whole section.
+            focusable = (
+                not broad
+                and len(parent) > config.CONTEXT_FOCUS_CHARS
+                and bool((c.get("label") or "").strip())
+            )
+            if focusable:
+                content = _focus_window(
+                    parent, c.get("child_content") or "",
+                    config.CONTEXT_FOCUS_CHARS, config.CONTEXT_PREAMBLE_CHARS,
+                )
+            else:
+                content = parent
+            content = content[:budget]
+            if not content:
+                continue
+
+            heading = c.get("heading") or c.get("topic") or ""
+            blocks.append(f"[{heading}]\n{content}" if heading else content)
+            kept.append(parent)
             budget -= len(content)
 
-        context_str = "\n\n---\n\n".join(context_blocks)
-        system = PROMPTS.get(mode, PROMPTS["fast"]).format(context=context_str)
-        messages = [
-            {"role": "system", "content": system},
-            {"role": "user", "content": question},
-        ]
-        return self.tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
+        return "\n\n---\n\n".join(blocks)
+
+    def _render(self, messages, add_generation_prompt):
+        """Apply the chat template with reasoning disabled where supported.
+
+        Hybrid-reasoning models (Qwen3 / Qwen3.5) default to thinking mode: the
+        template ends with an open `<think>` block, so the model emits a
+        reasoning trace before the answer. For a sub-second interview assistant
+        that is pure latency, so thinking is switched off when the template
+        accepts the flag. Templates that do not accept it are unaffected."""
+        try:
+            return self.tokenizer.apply_chat_template(
+                messages, tokenize=False,
+                add_generation_prompt=add_generation_prompt,
+                enable_thinking=False,
+            )
+        except Exception:
+            return self.tokenizer.apply_chat_template(
+                messages, tokenize=False,
+                add_generation_prompt=add_generation_prompt,
+            )
+
+    def _static_prefix_ids(self, system):
+        """Token ids of the longest reusable prefix for this system prompt.
+
+        Rendering the system message on its own is not portable: Qwen3.5's
+        template raises "No user query found in messages". Instead two full
+        prompts are rendered that differ only in user content, and their longest
+        common token prefix is taken. That is exactly the part every request with
+        this system prompt shares, whatever the template does."""
+        cached = self._prefix_ids_by_system.get(system)
+        if cached is not None:
+            return cached
+
+        a = self.tokenizer.encode(self._render(
+            [{"role": "system", "content": system},
+             {"role": "user", "content": "AAAAAAAA"}],
+            add_generation_prompt=True))
+        b = self.tokenizer.encode(self._render(
+            [{"role": "system", "content": system},
+             {"role": "user", "content": "BBBBBBBB"}],
+            add_generation_prompt=True))
+        n = 0
+        for x, y in zip(a, b):
+            if x != y:
+                break
+            n += 1
+        prefix = a[:n]
+        self._prefix_ids_by_system[system] = prefix
+        return prefix
+
+    def _build_prompt(self, question, context_chunks, style="grounded", mode="fast"):
+        """Returns (full_token_ids, system_prefix_token_ids, is_table)."""
+        # A comparison gets a table. The heading is consulted as well as the
+        # question, so "Star Schema vs Snow Flake Schema" is tabulated even when
+        # the student phrases it without the word "difference".
+        top = context_chunks[0] if context_chunks else {}
+        top_heading = top.get("heading", "")
+        # Tabulate only when the question asks for a comparison AND the material
+        # actually holds one; otherwise the model invents rows to fill it.
+        table = (is_comparison_question(question, top_heading)
+                 and material_supports_table(top_heading, top.get("content", "")))
+        system = build_system_prompt(style=style, mode=mode, table=table)
+        context = self._build_context(context_chunks, question=question)
+
+        # The material is wrapped in a tag rather than given a plain-text label.
+        # A label like "KNOWLEDGE:" gets echoed back as a heading in the answer;
+        # models reproduce tags far less often, and the rules forbid it outright.
+        user = (
+            f"<material>\n{context}\n</material>\n\n{question}"
+            if context else question
         )
 
-    def generate(self, question, context_chunks, stream=False, mode="fast"):
-        """Generate a full answer. Returns (text, ttft_ms, total_ms)."""
+        full_text = self._render(
+            [{"role": "system", "content": system},
+             {"role": "user", "content": user}],
+            add_generation_prompt=True,
+        )
+        full_ids = self.tokenizer.encode(full_text)
+        prefix_ids = self._static_prefix_ids(system)
+        return full_ids, prefix_ids, table
+
+    def _cached_prefix(self, full_ids, prefix_ids):
+        """Return (prompt_cache, tokens_still_to_process).
+
+        Prefills and stores the system prefix the first time a given style is
+        used, then reuses it for every later request with that style."""
+        # LRUPromptCache keys its trie on a hashable identifier; the MLX Model
+        # object itself is unhashable, so the model path is used.
+        key = self.model_path
+        cache, remaining = self._prefix_cache.fetch_nearest_cache(key, full_ids)
+        if cache is not None:
+            return cache, remaining
+
+        cache = make_prompt_cache(self.model)
+        # Only prefill if the rendered prefix really is a prefix of the full
+        # prompt; chat templates can reorder blocks.
+        if len(prefix_ids) > 8 and full_ids[:len(prefix_ids)] == prefix_ids:
+            self.model(mx.array(prefix_ids)[None], cache=cache)
+            mx.eval([c.state for c in cache])
+            self._prefix_cache.insert_cache(
+                key, prefix_ids, cache, cache_type="system"
+            )
+            cache, remaining = self._prefix_cache.fetch_nearest_cache(key, full_ids)
+            return cache, remaining
+        return cache, full_ids
+
+    # -- generation ------------------------------------------------------
+    def generate(self, question, context_chunks, stream=False,
+                 style="grounded", mode="fast"):
+        """Generate an answer. Returns (text, ttft_ms, total_ms), or a
+        generator of (text_piece, ttft_ms) when stream=True."""
         if not self.is_loaded:
-            return "⚠️ Local model not loaded.", 0.0, 0.0
+            return "Local model not loaded.", 0.0, 0.0
 
-        prompt = self._build_prompt(question, context_chunks, mode=mode)
-        t0 = time.time()
+        full_ids, prefix_ids, table = self._build_prompt(
+            question, context_chunks, style=style, mode=mode
+        )
+        cache, remaining = self._cached_prefix(full_ids, prefix_ids)
 
+        if table:
+            max_tokens = config.MAX_TOKENS_TABLE
+        elif mode == "large":
+            max_tokens = config.MAX_TOKENS_LARGE
+        else:
+            max_tokens = config.MAX_TOKENS
         gen_kwargs = {
-            "max_tokens": MAX_TOKENS_LARGE if mode == "large" else MAX_TOKENS,
-            "sampler": make_sampler(temp=TEMPERATURE),
+            "max_tokens": max_tokens,
+            "sampler": make_sampler(temp=config.TEMPERATURE),
+            "prompt_cache": cache,
         }
+        # A mild repetition penalty. Greedy decoding has no way out of a loop,
+        # and a 3B model building a long comparison table can get stuck emitting
+        # the same row ("| Data consistency | Single stream | Multiple streams |")
+        # until it hits the token limit. The penalty is small so it does not
+        # discourage the legitimate repetition of a term across table rows.
+        if config.REPETITION_PENALTY and config.REPETITION_PENALTY != 1.0:
+            gen_kwargs["logits_processors"] = make_logits_processors(
+                repetition_penalty=config.REPETITION_PENALTY,
+                repetition_context_size=config.REPETITION_CONTEXT,
+            )
+        if self.draft_model is not None:
+            gen_kwargs["draft_model"] = self.draft_model
+
+        t0 = time.time()
 
         if stream:
             def gen():
-                first_token_time = None
+                ttft = None
+                produced = []
                 for resp in stream_generate(
-                    self.model, self.tokenizer,
-                    prompt=prompt,
-                    **gen_kwargs,
+                    self.model, self.tokenizer, prompt=remaining, **gen_kwargs
                 ):
-                    # Skip empty tokens: MLX emits occasional empty pieces
-                    # mid-stream (e.g. whitespace). Breaking on "" would
-                    # truncate the answer.
+                    produced.append(resp.token)
+                    # MLX emits occasional empty pieces mid-stream; skipping
+                    # them (rather than breaking) avoids truncating answers.
                     if not resp.text:
                         continue
-                    if first_token_time is None:
-                        first_token_time = (time.time() - t0) * 1000
-                    yield resp.text, first_token_time
-                total_ms = (time.time() - t0) * 1000
-                yield "", total_ms  # true completion sentinel
+                    if ttft is None:
+                        ttft = (time.time() - t0) * 1000
+                    yield resp.text, ttft
+                self._remember(full_ids, produced, cache)
+                yield "", (time.time() - t0) * 1000  # completion sentinel
             return gen()
 
-        # Non-streaming
-        text = generate(
-            self.model, self.tokenizer,
-            prompt=prompt,
-            **gen_kwargs,
-        )
-        ttft_ms = (time.time() - t0) * 1000
-        return text.strip(), ttft_ms, ttft_ms
+        text = generate(self.model, self.tokenizer, prompt=remaining, **gen_kwargs)
+        self._remember(full_ids, self.tokenizer.encode(text), cache)
+        elapsed = (time.time() - t0) * 1000
+        return text.strip(), elapsed, elapsed
+
+    def _remember(self, full_ids, generated_ids, cache):
+        """Store the used cache so the next question about the same section
+        skips re-prefilling that section.
+
+        The prompt is laid out system -> material -> question, so two different
+        questions that retrieve the same section share a long token prefix. The
+        cache is keyed on prompt+completion (what it actually holds); the trie
+        then matches the shared prefix on a later request and trims the rest.
+        For an interview-prep tool, where students ask several questions about
+        one topic in a row, this turns the second question's prefill into
+        almost nothing."""
+        try:
+            self._prefix_cache.insert_cache(
+                self.model_path, list(full_ids) + list(generated_ids or []), cache
+            )
+        except Exception as e:
+            # Caching is an optimisation; a failure must not break answering.
+            print(f"prompt-cache insert skipped: {e}")
+
+    def warmup(self):
+        """Prefill and store each style's system prefix, and force MLX kernel
+        compilation, so the first real request pays neither cost."""
+        if not self.is_loaded:
+            return 0.0
+        t0 = time.time()
+        ctx = [{"heading": "Warmup", "content": "Warmup section text."}]
+        # The table variant is warmed too ("difference between X and Y" is one
+        # of the commonest interview questions), so the first comparison does
+        # not pay for prefilling a cold system prefix.
+        # The heading "A vs B" is what makes material_supports_table() true, so
+        # this really does build and cache the table system prefix.
+        table_ctx = [{"heading": "A vs B", "content": "A vs B\nWarmup row."}]
+        variants = [
+            ("grounded", "warmup", ctx),
+            ("scenario", "warmup", ctx),
+            ("open", "warmup", ctx),
+            ("grounded", "difference between a and b", table_ctx),
+        ]
+        for style, probe, probe_ctx in variants:
+            full_ids, prefix_ids, _ = self._build_prompt(
+                probe, probe_ctx, style=style, mode="fast"
+            )
+            cache, remaining = self._cached_prefix(full_ids, prefix_ids)
+            for _ in stream_generate(
+                self.model, self.tokenizer, prompt=remaining,
+                max_tokens=1, prompt_cache=cache,
+            ):
+                break
+        return (time.time() - t0) * 1000
 
     def unload(self):
         self.model = None
         self.tokenizer = None
+        self.draft_model = None
         self.is_loaded = False

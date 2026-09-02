@@ -35,12 +35,20 @@ qa_system = RAGSystem(load_llm=True)
 class QueryRequest(BaseModel):
     question: str
     mode: str = "fast"
+    # Which generation model to answer with. Unknown or omitted falls back to
+    # the default, so older clients keep working.
+    model: Optional[str] = None
 
 
 class QueryResponse(BaseModel):
     question: str
     answer: str
     mode: str
+    # Which answer style routing chose: grounded, scenario, or open.
+    # Undeclared fields are stripped by FastAPI, so this must be listed.
+    style: str = ""
+    # Which generation model actually answered.
+    model: str = ""
     confidence: float
     evidence: list
     retrieval_ms: float
@@ -56,15 +64,25 @@ def health_check():
     return h
 
 
+@app.get("/api/models")
+def list_models():
+    """Selectable generation models, with their measured tradeoffs."""
+    return {
+        "models": qa_system.models(),
+        "default": qa_system.registry.default_id if qa_system.registry else None,
+    }
+
+
 @app.get("/api/sample-questions")
 def get_sample_questions():
     return [
         {"text": "What is SCD Type 2?", "category": "SCD"},
         {"text": "What happens when customer address changes?", "category": "SCD"},
         {"text": "Difference between TRUNCATE and DELETE", "category": "SQL"},
-        {"text": "How to find 2nd highest salary in SQL", "category": "SQL Queries"},
+        {"text": "What are the types of joins?", "category": "SQL"},
+        {"text": "How to find department-wise 2nd max salary", "category": "SQL Queries"},
         {"text": "What is a Surrogate Key and why is it used?", "category": "Data Warehouse"},
-        {"text": "Star Schema vs Snowflake Schema", "category": "Data Warehouse"},
+        {"text": "Star Schema vs Fact and Dimension tables", "category": "Data Warehouse"},
         {"text": "Explain the Defect Life Cycle", "category": "Defect Life Cycle"},
         {"text": "What are the Levels of Testing?", "category": "Testing"},
     ]
@@ -89,7 +107,7 @@ def ask_question(req: QueryRequest):
     if not q:
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
     mode = req.mode if req.mode in ("fast", "large") else "fast"
-    return qa_system.answer(q, mode=mode)
+    return qa_system.answer(q, mode=mode, model_id=req.model)
 
 
 @app.post("/api/ask-stream")
@@ -101,45 +119,51 @@ def ask_question_stream(req: QueryRequest):
 
     t0 = time.time()
 
-    # 1. Retrieve + route (fast, no generation yet)
+    # 1. Retrieve, then choose an answer style (cheap: no generation).
     retrieved, breakdown = qa_system.retriever.retrieve(q)
-    top_score = retrieved[0]["score"] if retrieved else 0.0
     retrieve_ms = (time.time() - t0) * 1000
+    routed = qa_system.generator.route(q, retrieved)
 
-    # Classify the request BEFORE generating (fast confidence/lexical gate).
-    routed = qa_system.generator.route(q, retrieved, top_score)
+    # 2. Resolve the requested model. First use of a model loads it here, which
+    #    is why the client shows a "warming up" hint on first switch.
+    model_id, llm = qa_system.pick_model(req.model)
 
-    # Quick path (unsupported / extracted / LLM unavailable): no LLM tokens,
-    # send a single packet immediately.
-    if routed["mode"] != "generated":
+    # No model available: return the best section verbatim in one packet.
+    if not (llm and llm.is_loaded):
         payload = {
             "type": "complete",
             "question": q,
-            "answer": routed["answer"],
-            "mode": routed["mode"],
-            "confidence": round(top_score, 4),
-            "evidence": retrieved,
+            "answer": retrieved[0]["content"] if retrieved else "",
+            "mode": "extracted",
+            "style": routed["style"],
+            "model": model_id or "",
+            "confidence": routed["confidence"],
+            "evidence": qa_system.evidence(retrieved),
             "retrieval_ms": round(retrieve_ms, 2),
             "generation_ms": 0.0,
             "ttft_ms": 0.0,
             "breakdown": breakdown,
             "total_ms": round((time.time() - t0) * 1000, 2),
         }
+
         async def single():
             yield f"data: {json.dumps(payload)}\n\n".encode("utf-8")
         return StreamingResponse(single(), media_type="text/event-stream")
 
-    # 2. Real streaming: retrieve + route already done above, now stream the
-    #    LLM tokens live (no blocking pre-generation of the full answer).
-    participants = qa_system.llm.generate(q, retrieved, stream=True, mode=mode)
+    # 3. Stream the LLM tokens live.
+    participants = llm.generate(
+        q, retrieved, stream=True, style=routed["style"], mode=mode
+    )
 
     def stream_tokens():
         meta = {
             "type": "meta",
             "question": q,
             "mode": "generated",
-            "confidence": round(top_score, 4),
-            "evidence": retrieved,
+            "style": routed["style"],
+            "model": model_id or "",
+            "confidence": routed["confidence"],
+            "evidence": qa_system.evidence(retrieved),
             "retrieval_ms": round(retrieve_ms, 2),
             "breakdown": breakdown,
         }
@@ -177,4 +201,8 @@ def serve_index():
 
 
 if __name__ == "__main__":
-    uvicorn.run("app:app", host=HOST, port=PORT, reload=False)
+    # The app OBJECT is passed, not the "app:app" import string. With the
+    # string, uvicorn re-imports this module, which runs the module-level
+    # RAGSystem(...) a second time and loads the LLM and embedding model twice
+    # (doubling startup time and peak memory).
+    uvicorn.run(app, host=HOST, port=PORT, reload=False)

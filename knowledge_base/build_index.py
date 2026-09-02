@@ -33,26 +33,38 @@ def build(pdf_path=None):
     pages = loader.extract_pages()
     print(f"Extracted {len(pages)} pages")
 
-    # 2. Clean + chunk
+    # 2. Clean + chunk hierarchically (parent sections + child fragments)
     pages = [{"page": p["page"], "text": clean_text(p["text"])} for p in pages]
     chunker = SemanticChunker()
-    chunks = chunker.chunk_pages(pages)
-    print(f"Created {len(chunks)} semantic chunks")
+    parents, chunks = chunker.chunk_pages(pages)
+    print(f"Created {len(parents)} parent sections and {len(chunks)} child chunks")
 
-    # Save chunks
     os.makedirs(config.KB_DIR, exist_ok=True)
     with open(config.CHUNKS_PATH, "w", encoding="utf-8") as f:
         json.dump(chunks, f, ensure_ascii=False, indent=2)
-    print(f"Saved chunks to {config.CHUNKS_PATH}")
+    with open(config.PARENTS_PATH, "w", encoding="utf-8") as f:
+        json.dump(parents, f, ensure_ascii=False, indent=2)
+    print(f"Saved children to {config.CHUNKS_PATH}")
+    print(f"Saved parents  to {config.PARENTS_PATH}")
 
-    # 3. Embeddings
+    # 3. Embeddings over the CHILDREN, using index_text so each fragment is
+    #    embedded together with its contextual section header.
     emb = Embeddings(config.EMBEDDING_MODEL)
-    texts = [c["content"] for c in chunks]
+    texts = [c.get("index_text") or c["content"] for c in chunks]
     embeddings = emb.encode(texts)
     print(f"Encoded {len(embeddings)} embeddings, dim={embeddings.shape[1]}")
 
     # 4. FAISS vector store
-    metadata = [{"topic": c["topic"], "page": c["page"], "content": c["content"]} for c in chunks]
+    metadata = [{
+        "topic": c["topic"],
+        "page": c["page"],
+        "content": c["content"],
+        "index_text": c.get("index_text") or c["content"],
+        "parent_id": c["parent_id"],
+        "heading": c.get("heading", ""),
+        "label": c.get("label") or "",
+        "header": c.get("header", ""),
+    } for c in chunks]
     vec_store = VectorStore(config.FAISS_INDEX_PATH, config.VECTOR_META_PATH)
     vec_store.build(embeddings, metadata)
 
@@ -68,7 +80,8 @@ def build(pdf_path=None):
     # (embeddings are re-derivable; FAISS already holds them)
 
     elapsed = time.time() - t0
-    print(f"=== Index built in {elapsed:.1f}s: {len(chunks)} chunks ===")
+    print(f"=== Index built in {elapsed:.1f}s: {len(chunks)} child chunks, "
+          f"{len(parents)} parent sections ===")
     print(f"  Chunks:    {config.CHUNKS_PATH}")
     print(f"  FAISS:     {config.FAISS_INDEX_PATH}")
     print(f"  Metadata:  {config.VECTOR_META_PATH}")

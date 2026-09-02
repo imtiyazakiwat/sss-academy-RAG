@@ -28,7 +28,10 @@ class BM25Index:
     def build(self, metadata):
         """metadata: list of {topic, page, content}"""
         from rank_bm25 import BM25Okapi
-        corpus = [tokenize(m["content"]) for m in metadata]
+        # index_text carries the contextual section header ("Section: Join >
+        # d) Left Outer Join") so a fragment is findable by its section's
+        # wording, not just its own few lines.
+        corpus = [tokenize(m.get("index_text") or m["content"]) for m in metadata]
         self.bm25 = BM25Okapi(corpus)
         self.doc_ids = list(range(len(metadata)))
         self._save()

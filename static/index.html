@@ -203,6 +203,77 @@
   .speed-btn:not(.active):not(:disabled):hover{ color:#fff; background:rgba(255,255,255,.08); }
   .lock{ font-size:9px; opacity:.8; margin-left:2px; }
 
+  /* ---------- model picker ---------- */
+  .model-select{
+    display:flex; gap:3px;
+    background:rgba(255,255,255,.1);
+    border:1px solid rgba(255,255,255,.2);
+    border-radius:999px;
+    padding:3px;
+  }
+  .model-btn{
+    border:none; background:none;
+    color:rgba(255,255,255,.55);
+    font-size:11.5px; font-weight:700;
+    padding:6px 12px;
+    border-radius:999px;
+    display:flex; align-items:center; gap:5px;
+    transition:background .15s ease, color .15s ease;
+  }
+  .model-btn.active{ background:#fff; color:#2A3B7A; }
+  .model-btn:not(.active):hover{ color:#fff; background:rgba(255,255,255,.08); }
+  .model-btn .dot{
+    width:6px; height:6px; border-radius:50%;
+    background:currentColor; opacity:.35;
+  }
+  /* solid dot = weights already in memory, so no load wait */
+  .model-btn.loaded .dot{ opacity:1; }
+  .model-btn.loading .dot{ animation:pulse 1s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{opacity:.25;} 50%{opacity:1;} }
+
+  .model-note{
+    margin:6px 0 0; font-size:11.5px; line-height:1.5;
+    color:var(--muted);
+  }
+  /* ---------- comparison tables in answers ---------- */
+  .answer-content table{
+    width:100%;
+    border-collapse:collapse;
+    margin:10px 0 4px;
+    font-size:13px;
+    /* Long cells wrap rather than forcing the bubble wide. */
+    table-layout:fixed;
+  }
+  .answer-content th,
+  .answer-content td{
+    border:1px solid var(--panel-border);
+    padding:7px 9px;
+    text-align:left;
+    vertical-align:top;
+    word-break:break-word;
+  }
+  .answer-content th{
+    background:rgba(255,255,255,.07);
+    font-weight:700;
+    font-size:12px;
+    letter-spacing:.01em;
+  }
+  .answer-content tbody tr:nth-child(even) td{
+    background:rgba(255,255,255,.03);
+  }
+  /* Horizontal scroll on very narrow screens instead of squeezing columns. */
+  @media (max-width:520px){
+    .answer-content table{ display:block; overflow-x:auto; white-space:nowrap; }
+    .answer-content th, .answer-content td{ white-space:normal; min-width:110px; }
+  }
+
+  .answered-by{
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:10.5px; font-weight:700;
+    color:var(--muted);
+    margin-top:8px; opacity:.85;
+  }
+
   /* ---------- scroll area ---------- */
   .thread{
     position:relative;
@@ -569,6 +640,9 @@
           <button class="speed-btn" data-mode="large">Large</button>
           <button class="speed-btn" disabled>Deep <span class="lock">soon</span></button>
         </div>
+        <div class="model-select" role="group" aria-label="Answer model" id="modelSelect">
+          <!-- filled from /api/models -->
+        </div>
       </div>
 
       <div class="thread" id="thread">
@@ -643,6 +717,10 @@
   const closeSourceModal = document.getElementById('closeSourceModal');
 
   let activeMode = 'fast';
+  // Which generation model to answer with. Populated from /api/models; the
+  // student's choice is remembered across visits.
+  let activeModel = localStorage.getItem('sss_model') || null;
+  let availableModels = [];
   let activeSessionId = null;
 
   // History sessions: { id, question, answer, evidence, timestamp }
@@ -654,6 +732,57 @@
   }
 
   // Load sample questions from backend
+  // ---------- model picker ----------
+  function modelById(id) {
+    return availableModels.find(m => m.id === id) || null;
+  }
+
+  function renderModelPicker() {
+    const host = document.getElementById('modelSelect');
+    if (!host) return;
+    host.innerHTML = '';
+    availableModels.forEach(m => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'model-btn' + (m.id === activeModel ? ' active' : '')
+                    + (m.loaded ? ' loaded' : '');
+      btn.dataset.model = m.id;
+      // A hollow dot means the weights are not in memory yet, so the first
+      // question with that model waits a couple of seconds for it to load.
+      btn.innerHTML = `<span class="dot"></span>${m.label}`;
+      btn.title = `${m.blurb}  Accuracy on our test set: ${m.accuracy}.`
+                + (m.loaded ? '' : '  Loads on first use.');
+      btn.addEventListener('click', () => {
+        activeModel = m.id;
+        localStorage.setItem('sss_model', m.id);
+        renderModelPicker();
+      });
+      host.appendChild(btn);
+    });
+  }
+
+  async function loadModels() {
+    try {
+      const res = await fetch('/api/models');
+      if (!res.ok) return;
+      const data = await res.json();
+      availableModels = data.models || [];
+      if (!modelById(activeModel)) {
+        activeModel = data.default || (availableModels[0] && availableModels[0].id) || null;
+      }
+      renderModelPicker();
+    } catch (err) {
+      // Model picker is an enhancement: if it fails the server still answers
+      // with its default model.
+      console.warn('Could not load model list:', err);
+    }
+  }
+
+  function markModelLoaded(id) {
+    const m = modelById(id);
+    if (m && !m.loaded) { m.loaded = true; renderModelPicker(); }
+  }
+
   async function loadSampleQuestions() {
     try {
       const res = await fetch('/api/sample-questions');
@@ -802,7 +931,7 @@
     answerRow.className = 'row-assistant';
     answerRow.appendChild(createAvatar(true));
 
-    const bubble = createAnswerBubble(sess.answer, sess.evidence);
+    const bubble = createAnswerBubble(sess.answer, sess.evidence, sess.model);
     answerRow.appendChild(bubble);
     thread.appendChild(answerRow);
     scrollDown();
@@ -869,7 +998,7 @@
     }
   }
 
-  function createAnswerBubble(answerText, evidence) {
+  function createAnswerBubble(answerText, evidence, modelId) {
     const bubble = document.createElement('div');
     bubble.className = 'answer-bubble';
 
@@ -877,6 +1006,16 @@
     contentDiv.className = 'answer-content';
     contentDiv.innerHTML = formatText(answerText);
     bubble.appendChild(contentDiv);
+
+    // Which model produced this, so a saved answer stays interpretable when the
+    // student later switches models.
+    const usedModel = modelById(modelId);
+    if (usedModel) {
+      const by = document.createElement('div');
+      by.className = 'answered-by';
+      by.innerHTML = `<span class="dot"></span>${usedModel.label}`;
+      bubble.appendChild(by);
+    }
 
     // Footer with Clean Copy Button
     const footer = document.createElement('div');
@@ -991,6 +1130,7 @@
 
     let serverAnswer = '';
     let serverEvidence = [];
+    let serverModel = null;
     let querySuccess = false;
     let hasReplacedThinking = false;
 
@@ -1001,7 +1141,7 @@
       const response = await fetch('/api/ask-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: effectiveQuery, mode: effectiveMode })
+        body: JSON.stringify({ question: effectiveQuery, mode: effectiveMode, model: activeModel })
       });
 
       if (response.ok && response.body) {
@@ -1077,9 +1217,11 @@
                 renderStream(false);
               } else if (data.type === 'meta') {
                 if (Array.isArray(data.evidence)) serverEvidence = data.evidence;
+                if (data.model) { serverModel = data.model; markModelLoaded(data.model); }
               } else if (data.type === 'complete' || data.type === 'done') {
                 if (data.answer) serverAnswer = data.answer;
                 if (Array.isArray(data.evidence)) serverEvidence = data.evidence;
+                if (data.model) { serverModel = data.model; markModelLoaded(data.model); }
                 clearTimeout(renderTimer);
                 renderStream(true);
               }
@@ -1135,6 +1277,16 @@
           footer.appendChild(copyBtn);
           bubble.appendChild(footer);
 
+          // Label which model answered, so a saved answer stays interpretable
+          // if the student later switches models.
+          const usedModel = modelById(serverModel);
+          if (usedModel) {
+            const by = document.createElement('div');
+            by.className = 'answered-by';
+            by.innerHTML = `<span class="dot"></span>${usedModel.label}`;
+            bubble.appendChild(by);
+          }
+
           // Add sources accordion
           if (serverEvidence && serverEvidence.length > 0) {
             const pages = [...new Set(serverEvidence.map(s => s.page).filter(Boolean))];
@@ -1188,6 +1340,7 @@
             question: q,
             answer: cleanAnswer(serverAnswer),
             evidence: serverEvidence,
+            model: serverModel || activeModel,
             timestamp: Date.now()
           });
         }
@@ -1202,7 +1355,7 @@
         const fallbackRes = await fetch('/api/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: effectiveQuery, mode: effectiveMode })
+          body: JSON.stringify({ question: effectiveQuery, mode: effectiveMode, model: activeModel })
         });
         if (fallbackRes.ok) {
           const data = await fallbackRes.json();
@@ -1212,7 +1365,8 @@
           answerRow.className = 'row-assistant';
           answerRow.appendChild(createAvatar(true));
 
-          const bubble = createAnswerBubble(data.answer || 'No answer found.', data.evidence || []);
+          markModelLoaded(data.model);
+          const bubble = createAnswerBubble(data.answer || 'No answer found.', data.evidence || [], data.model);
           answerRow.appendChild(bubble);
           thread.appendChild(answerRow);
           scrollDown();
@@ -1222,6 +1376,7 @@
             question: q,
             answer: cleanAnswer(data.answer),
             evidence: data.evidence || [],
+            model: data.model || activeModel,
             timestamp: Date.now()
           });
           querySuccess = true;
@@ -1297,6 +1452,7 @@
   });
 
   renderDrawer();
+  loadModels();
   loadSampleQuestions();
 })();
 </script>
