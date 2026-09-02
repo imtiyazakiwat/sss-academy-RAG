@@ -92,6 +92,14 @@ _SUBITEM = re.compile(r"^\(?([a-z]|\d{1,2})[\.\)]\s+\S")
 # Heading emitted by PDFLoader for a rendered comparison table.
 _VS_HEADING = re.compile(r"^[^\n]{2,46}\s+vs\s+[^\n]{2,46}$")
 
+# Lines that open like prose continuing the paragraph above, so they head
+# nothing even when they mention a topic anchor.
+_PROSE_OPENER = re.compile(
+    r"^\s*(and|also|so|then|but|thus|hence|here|there|this|these|those|it|we|they|"
+    r"i)\b\s+\S",
+    re.I,
+)
+
 # Lines that look like headings but are really continuations of the topic that
 # precedes them. "Join" followed by "Types of joins:" is ONE section; treating
 # the second as a new section orphans the definition sentence from the list.
@@ -199,6 +207,13 @@ def is_section_heading(line: str, tabular: bool = False) -> bool:
         return False  # that is a level-2 sub-item, handled separately
     if _CONTINUATION_HEADING.match(line):
         return False  # belongs to the topic above it
+    if _PROSE_OPENER.match(line):
+        # A sentence continuing the previous paragraph, not a heading. Page 1
+        # ends with "And this is about my-self introduction.", which contains
+        # the Self Introduction anchor and so became its own 103-char section.
+        # Retrieval then served that fragment for "tell me about yourself",
+        # leaving the model with no material and inviting it to invent a CV.
+        return False
     label = line.rstrip(":").strip().lower()
     if label in _GENERIC_LABELS:
         return False

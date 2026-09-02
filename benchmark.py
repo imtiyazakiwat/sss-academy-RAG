@@ -98,7 +98,7 @@ LEAKS = re.compile(
     r"|not (available|mentioned|provided|found) in the"
     # Table cells were commenting on the material itself ("Not explicitly
     # documented"), which the pattern above missed because it has no "in the".
-    r"|not (explicitly |specifically )?(documented|mentioned|specified|stated|provided|available)\b"
+    r"|not (explicitly |specifically )?(documented|mentioned|specified|stated|provided|available|listed|included|found)\b"
     r"|as (documented|stated|mentioned) in the notes"
     r"|knowledge base"
     r"|i (don't|do not) have (enough |any )?(information|context)"

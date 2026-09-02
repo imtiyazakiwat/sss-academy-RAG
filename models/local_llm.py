@@ -56,9 +56,10 @@ _COMMON_RULES = """You are an ETL Testing and SQL interview preparation assistan
 ABSOLUTE RULES:
 - Never output the words "material", "KNOWLEDGE", or any tag such as <material>. Never mention notes, context, sources, documents, pages, or availability. Never say "based on the provided context", "according to the notes", "the context does not mention", or "this information is not available". Answer as a knowledgeable instructor speaking directly.
 - Never repeat or rephrase the question back before answering.
-- COMPLETENESS IS THE FIRST PRIORITY. Before answering, scan for any list of named items: numbered (1. 2. 3.), lettered (a) b) c)), or named types, forms, levels, stages, or commands. Every single one MUST appear in your answer with its name and a short meaning. An answer that names three of seven joins, or defines normalization without naming 1NF, 2NF, 3NF and BCNF, is wrong even if what it says is true.
-- Use the vocabulary and SQL dialect of the notes: Oracle-style SQL, SCOTT.EMP style table names, terms like de-normalized, surrogate key, initial and incremental load.
-- Cover every part the question asks for. If a topic has numbered or lettered sub-types, list all of them, not a sample."""
+- Never write "not listed", "not documented", "not mentioned", "not specified", "not available" or anything else about what you were given. Omit the point instead.
+- Never invent an employer, client, city, date, tool or metric that is absent. For "your project" or "yourself", state only what is actually given.
+- Use the vocabulary and SQL dialect of the notes: Oracle-style SQL, SCOTT.EMP table names, terms like de-normalized, surrogate key, initial and incremental load.
+- COMPLETENESS DECIDES CORRECTNESS. Scan for every named item: numbered (1. 2. 3.), lettered (a) b) c)), or named types, forms, levels, stages and commands. EVERY one must appear with its name and a short meaning. Naming three of seven joins, or defining normalization without naming 1NF, 2NF, 3NF and BCNF, is a WRONG answer even if what you did write is true. Answer every part of the question."""
 
 _STYLE_GROUNDED = """The material provided fully covers this question.
 
@@ -106,6 +107,7 @@ RULES FOR THE TABLE:
 - Keep each cell to a short phrase, not a sentence.
 - Include every point of difference the material gives, and nothing that is not about these two things.
 - If the material states a similarity, add one line under the table starting with "Similarity:".
+- If the question ALSO asks something that is not a comparison (a definition, or which of the two comes first and why), answer that part first in one or two short bullets, then give the table. Never drop it.
 - No preamble, no conclusion, no restating the question."""
 
 _LARGE_FORMAT = """FORMAT: classroom-notes style. First line is **Main Answer:** followed by a one-line direct answer. Then expand with short bullets, and a Syntax: or Example: block with real SQL where it helps. Stop once everything asked is covered."""
@@ -198,6 +200,58 @@ _PLURAL_HINT = re.compile(
 )
 
 
+
+# Connectors that start a second, separate ask inside one question.
+# Question marks already separate asks, so this only has to catch a second ask
+# joined onto the first ("... and why?"). It requires an explicit conjunction or
+# a comma: without that, the relative clause in "employees ... who joined last
+# month" was mistaken for a second question.
+_SECOND_ASK = re.compile(
+    r"(?:,\s*|\s+)((?:and|also|then)\s+"
+    r"(?:which|what|why|how|when|who|tell\s+me|explain|write|list|give)\b.*)$",
+    re.I | re.S,
+)
+
+
+def question_parts(question: str):
+    """Split a multi-part question into its separate asks.
+
+    Interview questions in these notes routinely bundle two or three:
+    "What is a fact and dimension table? Which table is loaded first in your
+    project and why?" Both models answered only the first part every time, so
+    the parts are extracted and listed back to the model as a checklist rather
+    than left for it to notice."""
+    q = (question or "").strip()
+    if not q:
+        return []
+
+    # Sentence-level split first. A question mark is unambiguous; a full stop
+    # counts only when the next sentence opens with a question word, so
+    # "Explain the architecture of your project. How does data flow?" splits
+    # while an ordinary abbreviation does not.
+    chunks = [c.strip() for c in re.split(
+        r"(?<=\?)\s+|(?<=\.)\s+(?=(?:which|what|why|how|when|who|tell|explain|write|list|give)\b)",
+        q, flags=re.I) if c.strip()]
+
+    parts = []
+    for chunk in chunks:
+        # Within a chunk, peel off a trailing second ask ("... and why?").
+        rest = chunk
+        m = _SECOND_ASK.search(rest)
+        if m and len(m.group(1)) > 12 and len(rest[:m.start(1)].strip()) > 12:
+            head = rest[:m.start(1)].strip(" ,.?")
+            tail = m.group(1).strip(" ,.?")
+            if head:
+                parts.append(head)
+            parts.append(tail)
+        else:
+            parts.append(rest.strip(" ,.?"))
+
+    # Drop fragments too short to be a real ask.
+    parts = [p for p in parts if len(p) > 8]
+    return parts if len(parts) > 1 else []
+
+
 def is_broad_question(question: str) -> bool:
     q = question or ""
     return bool(_BROAD_QUESTION.search(q) or _PLURAL_HINT.search(q))
@@ -243,6 +297,46 @@ def _focus_window(parent, child, limit, preamble_chars):
     if start <= len(preamble):
         return parent[:limit]
     return f"{preamble}\n...\n{window}"
+
+
+# Lines that talk about the material instead of answering. The prompt forbids
+# these, but a 3B ignores the rule often enough to matter, so they are also
+# removed deterministically. A student must never see the tool's plumbing.
+_GAP_TALK = re.compile(
+    r"not\s+(explicitly\s+|specifically\s+)?"
+    r"(documented|mentioned|specified|stated|provided|available|listed|"
+    r"included|found|covered|given)"
+    r"|no\s+(relevant\s+)?(information|details?|data)\s+(is\s+)?"
+    r"(available|provided|given|found)"
+    r"|(the\s+)?(material|context|notes?|document|text)\s+(provided\s+)?"
+    r"(does\s+not|doesn't|do\s+not|don't)"
+    r"|based\s+on\s+the\s+(provided\s+)?(material|context)"
+    r"|according\s+to\s+the\s+(material|context|notes)",
+    re.I,
+)
+
+
+def scrub_line(line: str) -> str:
+    """Drop a line that comments on the material rather than answering.
+
+    Returns "" when the whole line should go. A table row is dropped outright; a
+    prose line is dropped only if the gap talk is the substance of it, so a
+    legitimate sentence that merely contains the word "provided" survives."""
+    if not _GAP_TALK.search(line):
+        return line
+    stripped = line.strip()
+    # Table rows and bullets are self-contained: remove the whole thing.
+    if stripped.startswith("|") or stripped.startswith(("-", "*", "•")):
+        return ""
+    # Otherwise keep the line only if it still says something substantial once
+    # the offending clause is removed.
+    cleaned = _GAP_TALK.sub("", line).strip(" ,.;:-|")
+    return line if len(cleaned) > 60 else ""
+
+
+def scrub_answer(text: str) -> str:
+    kept = [scrub_line(ln) for ln in (text or "").split("\n")]
+    return "\n".join(ln for ln in kept if ln.strip() or ln == "").strip()
 
 
 def build_system_prompt(style="grounded", mode="fast", table=False):
@@ -427,9 +521,24 @@ class LocalLLM:
         # The material is wrapped in a tag rather than given a plain-text label.
         # A label like "KNOWLEDGE:" gets echoed back as a heading in the answer;
         # models reproduce tags far less often, and the rules forbid it outright.
+        # Multi-part questions get their parts listed back explicitly. Both
+        # models answered only the first part of every bundled question
+        # ("...Which table is loaded first and why?"), and a checklist in the
+        # user turn fixes that far more reliably than a general instruction.
+        parts = question_parts(question)
+        if parts:
+            asks = "\n".join(f"{i}. {p}" for i, p in enumerate(parts, 1))
+            ask_block = (
+                f"{question}\n\n"
+                f"This question has {len(parts)} parts. Answer every one, each "
+                f"under its own short heading:\n{asks}"
+            )
+        else:
+            ask_block = question
+
         user = (
-            f"<material>\n{context}\n</material>\n\n{question}"
-            if context else question
+            f"<material>\n{context}\n</material>\n\n{ask_block}"
+            if context else ask_block
         )
 
         full_text = self._render(
@@ -509,6 +618,12 @@ class LocalLLM:
             def gen():
                 ttft = None
                 produced = []
+                # The first line streams token by token so time-to-first-token
+                # is unaffected. After that, output is buffered a line at a time
+                # so a line that talks about the material can be dropped before
+                # the student sees it - which is impossible once tokens are out.
+                buf = ""
+                first_line_done = False
                 for resp in stream_generate(
                     self.model, self.tokenizer, prompt=remaining, **gen_kwargs
                 ):
@@ -519,7 +634,29 @@ class LocalLLM:
                         continue
                     if ttft is None:
                         ttft = (time.time() - t0) * 1000
-                    yield resp.text, ttft
+
+                    if not first_line_done:
+                        buf += resp.text
+                        if "\n" in buf:
+                            head, _, buf = buf.partition("\n")
+                            first_line_done = True
+                            out = scrub_line(head)
+                            yield (out + "\n") if out else "", ttft
+                        else:
+                            yield resp.text, ttft
+                            buf = ""      # already emitted
+                        continue
+
+                    buf += resp.text
+                    while "\n" in buf:
+                        line, _, buf = buf.partition("\n")
+                        out = scrub_line(line)
+                        if out:
+                            yield out + "\n", ttft
+                if buf:
+                    out = scrub_line(buf)
+                    if out:
+                        yield out, ttft
                 self._remember(full_ids, produced, cache)
                 yield "", (time.time() - t0) * 1000  # completion sentinel
             return gen()
@@ -527,7 +664,7 @@ class LocalLLM:
         text = generate(self.model, self.tokenizer, prompt=remaining, **gen_kwargs)
         self._remember(full_ids, self.tokenizer.encode(text), cache)
         elapsed = (time.time() - t0) * 1000
-        return text.strip(), elapsed, elapsed
+        return scrub_answer(text), elapsed, elapsed
 
     def _remember(self, full_ids, generated_ids, cache):
         """Store the used cache so the next question about the same section

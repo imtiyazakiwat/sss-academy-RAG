@@ -16,7 +16,7 @@ import config
 from knowledge_base.embeddings import Embeddings
 from knowledge_base.vector_store import VectorStore
 from knowledge_base.bm25_index import BM25Index
-from knowledge_base.retriever import HybridRetriever
+from knowledge_base.retriever import HybridRetriever, Lexicon
 from knowledge_base.answer_generator import AnswerGenerator
 from models.model_registry import ModelRegistry
 
@@ -47,11 +47,17 @@ class RAGSystem:
             self.parents = json.load(f)
         print(f"Loaded {len(self.parents)} parent sections")
 
+        # Term statistics over the notes. Built before the retriever because
+        # ranking uses them to prefer sections that hold the question's rare,
+        # decisive words, and routing uses them to spot uncovered topics.
+        self.lexicon = Lexicon([p["content"] for p in self.parents])
+
         self.retriever = HybridRetriever(
             embeddings=self.embeddings,
             vector_store=self.vector_store,
             bm25=self.bm25,
             parents=self.parents,
+            lexicon=self.lexicon,
             vector_top_k=config.TOP_K_VECTOR,
             bm25_top_k=config.TOP_K_BM25,
             final_top_k=config.TOP_K_FINAL,
@@ -60,7 +66,7 @@ class RAGSystem:
         # Selectable generation models. The default is loaded now; the others
         # load on first use so startup stays quick.
         self.registry = ModelRegistry() if load_llm else None
-        self.generator = AnswerGenerator()
+        self.generator = AnswerGenerator(lexicon=self.lexicon)
         if self.registry:
             if config.PRELOAD_ALL_MODELS:
                 self.registry.preload()

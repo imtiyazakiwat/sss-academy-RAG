@@ -24,6 +24,7 @@ from config import (
     GROUNDED_VECTOR,
     GROUNDED_RERANK,
     OPEN_LEXICAL,
+    UNKNOWN_TOPIC_SHARE,
 )
 from knowledge_base.retriever import lexical_relevance
 from models.local_llm import LocalLLM
@@ -56,8 +57,11 @@ class AnswerGenerator:
     """Routing is model-independent, so one generator serves every model.
     The LLM to use is supplied per call (students pick a model per question)."""
 
-    def __init__(self, llm: LocalLLM = None):
+    def __init__(self, llm: LocalLLM = None, lexicon=None):
         self.llm = llm
+        # Document frequencies over the notes. Without it, routing cannot tell
+        # a question's decisive words from its filler.
+        self.lexicon = lexicon
 
     def route(self, question, retrieved):
         """Choose an answer style. Cheap: no generation, no LLM call.
@@ -71,14 +75,36 @@ class AnswerGenerator:
         top = retrieved[0]
         rerank = float(top.get("score") or 0.0)
         vector = float(top.get("vector_score") or 0.0)
-        # Recompute against the parent section: the retriever's value is
-        # measured on whatever body it returned, and routing should judge the
-        # exact text the model will read.
-        lexical = top.get("lexical")
-        if lexical is None:
-            lexical = lexical_relevance(question, top.get("content", ""))
+        body = top.get("content", "")
+
+        # Judge the exact text the model will read, weighting each question word
+        # by how distinctive it is. Plain overlap counted "read" and "scripts"
+        # as heavily as "python" and so called an uncovered topic grounded.
+        if self.lexicon is not None:
+            lexical = self.lexicon.weighted_coverage(question, body)
+            unknown_share = self.lexicon.unknown_share(question)
+            unknown = (self.lexicon.unknown_terms(question)
+                       if unknown_share >= UNKNOWN_TOPIC_SHARE else [])
+        else:
+            lexical = top.get("lexical")
+            if lexical is None:
+                lexical = lexical_relevance(question, body)
+            unknown_share = 0.0
+            unknown = []
         lexical = float(lexical)
         confidence = calibrate(rerank)
+
+        # A content word the notes never use means the topic is outside them,
+        # whatever the similarity scores say. Answer from expertise instead of
+        # forcing the model to work inside material that cannot answer.
+        if unknown:
+            return {
+                "style": "open",
+                "confidence": confidence,
+                "lexical": round(lexical, 3),
+                "unknown_terms": unknown,
+                "reason": f"not covered by the notes: {', '.join(unknown[:4])}",
+            }
 
         well_grounded = (
             lexical >= GROUNDED_LEXICAL
@@ -91,19 +117,20 @@ class AnswerGenerator:
             style, reason = "scenario", "applied phrasing with usable context"
         elif well_grounded:
             style, reason = "grounded", (
-                f"lexical={lexical:.2f} vector={vector:.2f} rerank={rerank:.2f}"
+                f"coverage={lexical:.2f} vector={vector:.2f} rerank={rerank:.2f}"
             )
         elif lexical >= OPEN_LEXICAL:
             style, reason = "scenario", "partial overlap, reason from context"
         else:
             style, reason = "open", (
-                f"weak overlap (lexical={lexical:.2f}), answering from expertise"
+                f"weak coverage ({lexical:.2f}), answering from expertise"
             )
 
         return {
             "style": style,
             "confidence": confidence,
             "lexical": round(lexical, 3),
+            "unknown_terms": [],
             "reason": reason,
         }
 

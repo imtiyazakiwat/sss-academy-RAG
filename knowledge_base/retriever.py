@@ -69,6 +69,10 @@ QUERY_EXPANSIONS = [
     (r"\bnull\b", ["NVL", "NVL2", "NULLIF", "COALESCE"]),
     (r"\bdefect|\bbug\b", ["defect life cycle", "severity", "priority", "status"]),
     (r"\bagile\b|\bscrum\b|\bsprint\b", ["agile methodology", "scrum master", "sprint", "backlog"]),
+    # The notes describe each ceremony (sprint planning, retrospective, demo,
+    # release) without ever using the word "ceremony".
+    (r"\bceremon(y|ies)\b|\brituals?\b|\bmeetings?\s+in\s+agile\b",
+     ["sprint planning", "sprint retrospective", "sprint demo", "release", "scrum"]),
     # The notes never write "standup" or "stand-up"; the role is "Scrum Master".
     (r"\bstand\s?-?up\b|\bdaily\s+(meeting|call|scrum)\b|\bwho\s+runs\b",
      ["scrum master", "sprint", "agile methodology", "supervisor"]),
@@ -121,6 +125,11 @@ STOPWORDS = {
     "your", "me", "explain", "tell", "about", "write", "query", "queries",
     "when", "whats", "difference", "between", "please", "can", "i", "it",
     "give", "show", "list", "some", "any", "there", "define",
+    # Interview question framing, not subject matter. Without these, "tell me
+    # about yourself" looked like a question about an uncovered topic because
+    # the notes write "my-self" rather than "yourself".
+    "yourself", "yourselves", "myself", "ourselves", "tell", "describe",
+    "brief", "briefly", "explaining", "mean", "means", "meaning",
 }
 
 
@@ -175,6 +184,23 @@ def expand_query(query: str, max_variants=3) -> list:
     return variants[:max_variants]
 
 
+def _stem(word: str) -> str:
+    """Crude suffix stripper. Enough to match "activities" with "activity" or
+    "ceremonies" with "ceremony" without pulling in a stemming dependency."""
+    w = word
+    if len(w) > 4 and w.endswith("ies"):
+        return w[:-3] + "y"
+    if len(w) > 5 and w.endswith("ing"):
+        return w[:-3]
+    if len(w) > 4 and w.endswith("ed"):
+        return w[:-2]
+    if len(w) > 3 and w.endswith("es"):
+        return w[:-2]
+    if len(w) > 3 and w.endswith("s") and not w.endswith("ss"):
+        return w[:-1]
+    return w
+
+
 def _fuzzy_hits(q_token: str, content_tokens: set, content_lower: str) -> bool:
     """True if q_token occurs in the content, or is within edit distance of a
     content word (covers typos the dictionary does not list)."""
@@ -185,6 +211,122 @@ def _fuzzy_hits(q_token: str, content_tokens: set, content_lower: str) -> bool:
         len(w) >= 4 and _edit_distance(q_token, w) <= max_dist
         for w in content_tokens
     )
+
+
+class Lexicon:
+    """Document frequencies over the notes, used to tell a question's decisive
+    words from its filler.
+
+    Plain token-overlap scoring counts every word the same, which is how
+    "How to read Python scripts?" scored 0.67 against the Unix commands section:
+    *read* and *scripts* matched while *python*, the only word that decides what
+    the question is about, appears nowhere in the notes. That pushed an
+    uncovered topic into the grounded style, and the model's only honest move
+    was to say the material does not cover it - a leak.
+
+    Weighting by inverse document frequency makes the rare, topic-bearing words
+    dominate, and terms absent from the corpus are reported so routing can send
+    the question to the open style instead."""
+
+    def __init__(self, documents):
+        self.n_docs = max(1, len(documents))
+        self.df = defaultdict(int)
+        for doc in documents:
+            for tok in set(re.findall(r"[a-z0-9]+", (doc or "").lower())):
+                self.df[tok] += 1
+        self.vocab = set(self.df)
+        # Stems too, so an inflected question word still counts as covered:
+        # the notes write "activities" and "my-self" where a student types
+        # "activity" and "yourself".
+        self.stems = {_stem(v) for v in self.vocab}
+        # Every term any expansion can introduce. If a question triggers an
+        # expansion whose terms the notes do use, the question's own wording
+        # being absent is not evidence the topic is missing - the notes just
+        # name it differently ("snowflake" -> "snow flake").
+        self.expansion_terms = set()
+        for _pattern, terms in QUERY_EXPANSIONS:
+            for t in terms:
+                self.expansion_terms.update(re.findall(r"[a-z0-9]+", t.lower()))
+
+    def idf(self, token: str) -> float:
+        # Absent terms get the highest weight: they are the most informative
+        # thing a question can contain.
+        df = self.df.get(token, 0)
+        return math.log(1.0 + self.n_docs / (1.0 + df))
+
+    def _in_vocab(self, token: str) -> bool:
+        if token in self.vocab or _stem(token) in self.stems:
+            return True
+        # Tolerate typos so a misspelling is not mistaken for a new topic.
+        if len(token) < 5:
+            return False
+        return any(len(v) >= 5 and _edit_distance(token, v) <= 1 for v in self.vocab)
+
+    def unknown_share(self, question: str) -> float:
+        """Share of the question's information carried by words the notes never
+        use. Judging on presence alone was too blunt: "Star vs Snowflake" has
+        one absent word out of four and is fully covered, while "read Python
+        scripts" has one absent word that IS the question."""
+        terms = self.question_terms(question)
+        if not terms:
+            return 0.0
+        # Words that a synonym rule already knows about. If an expansion pattern
+        # matched part of the question, the notes cover that idea under another
+        # name ("snowflake" -> "snow flake"), so its absence is not a gap.
+        aliased = self.aliased_terms(question)
+        total = unknown = 0.0
+        for t in terms:
+            w = self.idf(t)
+            total += w
+            if self._in_vocab(t) or t in aliased:
+                continue
+            unknown += w
+        return unknown / total if total else 0.0
+
+    def aliased_terms(self, question: str) -> set:
+        """Question words that a synonym rule maps onto the notes' own wording.
+
+        Only the text each pattern actually matched counts, so triggering the
+        joins rule does not excuse an unrelated unknown word elsewhere in the
+        same question."""
+        corrected = correct_query(question).lower()
+        out = set()
+        for pattern, terms in QUERY_EXPANSIONS:
+            for m in re.finditer(pattern, corrected):
+                if not m.group(0).strip():
+                    continue
+                # Only credit the alias if the notes really use the replacement.
+                if any(w in self.vocab or _stem(w) in self.stems
+                       for t in terms for w in re.findall(r"[a-z0-9]+", t.lower())):
+                    out.update(re.findall(r"[a-z0-9]+", m.group(0)))
+        return out
+
+    def question_terms(self, question: str):
+        corrected = correct_query(question)
+        return [
+            w for w in re.findall(r"[a-z0-9]+", corrected.lower())
+            if w not in STOPWORDS and len(w) > 2
+        ]
+
+    def unknown_terms(self, question: str):
+        """Content words of the question that the notes never use."""
+        return [t for t in self.question_terms(question) if not self._in_vocab(t)]
+
+    def weighted_coverage(self, question: str, content: str) -> float:
+        """Share of the question's INFORMATION, not its word count, that the
+        given text covers."""
+        terms = self.question_terms(question)
+        if not terms:
+            return 0.0
+        content_lower = (content or "").lower()
+        content_tokens = set(re.findall(r"[a-z0-9]+", content_lower))
+        total = hit = 0.0
+        for t in terms:
+            w = self.idf(t)
+            total += w
+            if _fuzzy_hits(t, content_tokens, content_lower):
+                hit += w
+        return hit / total if total else 0.0
 
 
 def lexical_relevance(query: str, content: str) -> float:
@@ -207,7 +349,8 @@ class HybridRetriever:
     def __init__(self, embeddings: Embeddings, vector_store: VectorStore,
                  bm25: BM25Index, parents=None, vector_top_k=10,
                  bm25_top_k=10, final_top_k=3, rerank_candidates=12,
-                 detail_weight=1.5, match_weight=1.2,
+                 detail_weight=1.5, match_weight=1.2, coverage_weight=3.0,
+                 lexicon=None,
                  cross_encoder_model="cross-encoder/ms-marco-MiniLM-L-6-v2"):
         self.embeddings = embeddings
         self.vector_store = vector_store
@@ -219,6 +362,8 @@ class HybridRetriever:
         self.rerank_candidates = rerank_candidates
         self.detail_weight = detail_weight
         self.match_weight = match_weight
+        self.coverage_weight = coverage_weight
+        self.lexicon = lexicon
 
         if CrossEncoder:
             print(f"Loading CrossEncoder '{cross_encoder_model}'...")
@@ -336,11 +481,21 @@ class HybridRetriever:
         ranked = []
         for pid, slot in agg.items():
             parent = self.parents[pid] if pid is not None and pid < len(self.parents) else None
-            size = len(parent["content"]) if parent else len(metadata[slot["idx"]]["content"])
+            body = parent["content"] if parent else metadata[slot["idx"]]["content"]
+            size = len(body)
+            # Does the section actually contain what the question asked about?
+            # Without this, "what are the levels of testing" ranked two "Test
+            # Case" sections with ZERO coverage of the question above the
+            # "LEVELS OF TESTING" section, because they were longer and matched
+            # more fragments. Coverage is idf-weighted, so a section holding the
+            # rare, decisive words wins over one holding only common ones.
+            coverage = (self.lexicon.weighted_coverage(query, body)
+                        if self.lexicon is not None else 0.0)
             score = (
                 slot["best"]
                 + self.detail_weight * min(size / 2000.0, 1.0)
                 + self.match_weight * math.log1p(slot["n"] - 1)
+                + self.coverage_weight * coverage
             )
             ranked.append((pid, score))
         ranked.sort(key=lambda x: x[1], reverse=True)

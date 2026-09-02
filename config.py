@@ -153,7 +153,20 @@ TOP_K_FINAL = 3
 GROUNDED_LEXICAL = 0.60   # strong keyword overlap -> answer strictly from notes
 GROUNDED_VECTOR = 0.78    # or strong semantic match alone
 GROUNDED_RERANK = 4.00    # or a confident cross-encoder verdict
-OPEN_LEXICAL = 0.30       # below this, fall back to expertise in the notes' voice
+# Coverage is now idf-weighted, so its scale is lower than the old plain token
+# fraction: genuinely covered questions measure as low as 0.27 ("daily activity
+# in your company", where only "daily" and "activity" carry weight). Detecting
+# uncovered topics is UNKNOWN_TOPIC_SHARE's job now, so this floor only catches
+# retrieval that missed entirely.
+OPEN_LEXICAL = 0.12
+
+# A question is treated as outside the notes when this share of its INFORMATION
+# (idf-weighted, stem- and synonym-aware) sits in words the notes never use.
+# Presence alone was too blunt: "Star vs Snowflake" contains one absent word of
+# four yet is fully covered, while "read Python scripts" contains one absent
+# word that is the entire question. Measured on the 22 interview questions,
+# 0.30 separates them once stemming and synonym aliasing are applied first.
+UNKNOWN_TOPIC_SHARE = 0.30
 
 # ---------------------------------------------------------------------------
 # Optional speculative-decoding draft model.
