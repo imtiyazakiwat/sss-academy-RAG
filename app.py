@@ -99,6 +99,14 @@ def voice_config():
         "silence_ms": config.VOICE_SILENCE_MS,
         # Only offer the online engines when a key is actually configured.
         "online_available": transcriber.is_loaded,
+        "sources": [
+            {"id": "mic", "label": "My microphone",
+             "blurb": "Transcribes what you say."},
+            {"id": "system", "label": "System audio (a call)",
+             "blurb": "Transcribes what you hear, e.g. an interviewer on a call. "
+                      "Chrome only, and needs the online engine."},
+        ],
+        "system_chunk_ms": config.VOICE_SYSTEM_CHUNK_MS,
     }
 
 

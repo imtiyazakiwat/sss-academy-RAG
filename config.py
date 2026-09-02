@@ -123,6 +123,14 @@ VOICE_DEFAULT_ENGINE = "hybrid"
 VOICE_DEFAULT_LANGUAGE = "en-IN"
 # Stop listening after this much silence.
 VOICE_SILENCE_MS = 1500
+# Live system-audio transcription sends a clip this often. The Web Speech API
+# cannot read anything but the microphone, so captured system audio has to go
+# through Whisper, one clip at a time.
+#
+# Chosen against the free tier's ~30 requests/minute: 4 s clips is 15 req/min,
+# leaving room for the student's own questions. Shorter clips feel more live but
+# throttle, and split words across boundaries more often.
+VOICE_SYSTEM_CHUNK_MS = 4000
 # Reject absurdly large uploads outright.
 VOICE_MAX_UPLOAD_BYTES = 8_000_000
 # Reasoning models spend part of the budget thinking before answering, and

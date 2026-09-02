@@ -731,6 +731,8 @@
         <div class="voice-status" id="voiceStatus"></div>
         <div class="voice-panel" id="voicePanel">
           <h4>Voice input</h4>
+          <label for="voiceSource">Listen to</label>
+          <select id="voiceSource"></select>
           <label for="voiceEngine">Transcription</label>
           <select id="voiceEngine"></select>
           <label for="voiceLang">Language</label>
@@ -824,6 +826,7 @@
     engine: localStorage.getItem('sss_voice_engine') || 'hybrid',
     lang: localStorage.getItem('sss_voice_lang') || 'en-IN',
     autoSend: localStorage.getItem('sss_voice_autosend') === '1',
+    source: localStorage.getItem('sss_voice_source') || 'mic',
     recognition: null,
     listening: false,
     finalText: '',
@@ -831,12 +834,17 @@
     chunks: [],
     silenceTimer: null,
     stream: null,
+    // System-audio mode transcribes rolling clips instead of one recording.
+    liveTimer: null,
+    liveText: '',
+    livePending: 0,
   };
 
   const micBtn = document.getElementById('micBtn');
   const voiceSettingsBtn = document.getElementById('voiceSettingsBtn');
   const voicePanel = document.getElementById('voicePanel');
   const voiceStatus = document.getElementById('voiceStatus');
+  const voiceSourceSel = document.getElementById('voiceSource');
   const voiceEngineSel = document.getElementById('voiceEngine');
   const voiceLangSel = document.getElementById('voiceLang');
   const voiceAutoSend = document.getElementById('voiceAutoSend');
@@ -873,6 +881,23 @@
     if (!SpeechRec && voice.engine !== 'whisper') voice.engine = 'whisper';
     if (!online && voice.engine !== 'browser') voice.engine = 'browser';
 
+    // System audio needs getDisplayMedia WITH an audio track, which on macOS
+    // only Chrome 141+ provides. Safari cannot capture audio this way at all,
+    // so the option is hidden rather than offered and then failing.
+    const canSystemAudio = !!(navigator.mediaDevices
+                              && navigator.mediaDevices.getDisplayMedia)
+                           && online;
+    const sources = (voice.cfg && voice.cfg.sources) || [];
+    voiceSourceSel.innerHTML = '';
+    sources.forEach(sc => {
+      if (sc.id === 'system' && !canSystemAudio) return;
+      const o = document.createElement('option');
+      o.value = sc.id; o.textContent = sc.label; o.dataset.blurb = sc.blurb || '';
+      voiceSourceSel.appendChild(o);
+    });
+    if (voice.source === 'system' && !canSystemAudio) voice.source = 'mic';
+    voiceSourceSel.value = voice.source;
+
     const engines = (voice.cfg && voice.cfg.engines) || [];
     voiceEngineSel.innerHTML = '';
     engines.forEach(e => {
@@ -897,8 +922,17 @@
   }
 
   function updateVoiceHint() {
-    const opt = voiceEngineSel.selectedOptions[0];
-    voiceHint.textContent = opt ? (opt.dataset.blurb || '') : '';
+    const src = voiceSourceSel && voiceSourceSel.selectedOptions[0];
+    const eng = voiceEngineSel.selectedOptions[0];
+    // In system-audio mode the engine choice is irrelevant: the browser speech
+    // API can only read the microphone, so Whisper is the only option.
+    const systemMode = voice.source === 'system';
+    if (voiceEngineSel) voiceEngineSel.disabled = systemMode;
+    voiceHint.textContent = systemMode
+      ? ((src && src.dataset.blurb ? src.dataset.blurb + ' ' : '')
+         + 'Chrome will ask you to share a screen or tab; turn on "Share system audio". '
+         + 'Text arrives every few seconds.')
+      : (eng ? (eng.dataset.blurb || '') : '');
   }
 
   // ---- browser engine ----
@@ -985,12 +1019,92 @@
     } catch (err) { return text; }
   }
 
+  // ---- system audio (a call) ----
+  // Captures what you HEAR rather than what you say, so an interviewer's
+  // question on a call can be transcribed. Requires getDisplayMedia with audio,
+  // which on macOS means Chrome 141+; Safari cannot do it.
+  //
+  // The browser speech API is mic-only and cannot accept this stream, so clips
+  // are cut every few seconds and sent to Whisper. That makes it "live" in the
+  // sense of arriving continuously, not instantly.
+  async function startSystemCapture() {
+    const display = await navigator.mediaDevices.getDisplayMedia({
+      video: true,            // Chrome requires a video track to be requested
+      audio: { echoCancellation: false, noiseSuppression: false },
+    });
+    const audioTracks = display.getAudioTracks();
+    if (!audioTracks.length) {
+      display.getTracks().forEach(t => t.stop());
+      throw new Error('no-system-audio');
+    }
+    // The video track is only the price of admission; drop it immediately.
+    display.getVideoTracks().forEach(t => { t.stop(); display.removeTrack(t); });
+    voice.stream = display;
+    // If the user stops sharing from Chrome's own bar, stop listening too.
+    audioTracks[0].addEventListener('ended', () => stopListening(true));
+
+    voice.liveText = '';
+    voice.livePending = 0;
+    const chunkMs = (voice.cfg && voice.cfg.system_chunk_ms) || 4000;
+
+    const cutClip = () => {
+      if (!voice.listening) return;
+      const rec = new MediaRecorder(new MediaStream(audioTracks));
+      const parts = [];
+      rec.ondataavailable = e => { if (e.data.size) parts.push(e.data); };
+      rec.onstop = async () => {
+        if (!parts.length) return;
+        voice.livePending++;
+        const form = new FormData();
+        form.append('audio', new Blob(parts, { type: 'audio/webm' }), 'clip.webm');
+        form.append('language', voice.lang);
+        try {
+          const res = await fetch('/api/voice/transcribe', { method: 'POST', body: form });
+          if (res.ok) {
+            const data = await res.json();
+            const piece = (data.text || '').trim();
+            if (piece) {
+              voice.liveText = (voice.liveText + ' ' + piece).trim();
+              input.value = voice.liveText;
+            }
+          } else if (res.status === 502 || res.status === 429) {
+            setVoiceStatus('Transcription is rate limited; some speech may be missed.');
+          }
+        } catch (err) {
+          // A dropped clip is survivable; keep listening.
+        } finally {
+          voice.livePending--;
+        }
+      };
+      rec.start();
+      setTimeout(() => { try { rec.stop(); } catch (e) {} }, chunkMs);
+    };
+
+    cutClip();
+    voice.liveTimer = setInterval(cutClip, chunkMs);
+    setVoiceStatus('Listening to the call… text appears every few seconds. '
+                 + '<b>Click the mic to stop.</b>');
+  }
+
   async function startListening() {
     if (voice.listening) return;
     voice.listening = true;
     micBtn.classList.add('listening');
     input.classList.remove('interim');
     setVoiceStatus('Listening… <b>speak now</b>');
+
+    if (voice.source === 'system') {
+      try {
+        await startSystemCapture();
+      } catch (err) {
+        voice.listening = false;
+        micBtn.classList.remove('listening');
+        setVoiceStatus(err && err.message === 'no-system-audio'
+          ? 'No system audio was shared. Re-try and switch on "Share system audio" in Chrome\u2019s dialog.'
+          : 'Could not capture system audio. Chrome is required for this.');
+      }
+      return;
+    }
 
     try {
       if (voice.engine === 'whisper') {
@@ -1015,6 +1129,24 @@
     voice.listening = false;
     micBtn.classList.remove('listening');
     if (voice.silenceTimer) { clearTimeout(voice.silenceTimer); voice.silenceTimer = null; }
+
+    // System-audio mode: stop the rolling clips and let any in-flight ones land.
+    if (voice.liveTimer) {
+      clearInterval(voice.liveTimer);
+      voice.liveTimer = null;
+      if (voice.stream) { voice.stream.getTracks().forEach(t => t.stop()); voice.stream = null; }
+      if (voice.livePending > 0) {
+        setVoiceStatus('Finishing transcription…');
+        for (let i = 0; i < 40 && voice.livePending > 0; i++) {
+          await new Promise(r => setTimeout(r, 150));
+        }
+      }
+      input.classList.remove('interim');
+      input.value = voice.liveText.trim();
+      setVoiceStatus('');
+      if (input.value) input.focus();
+      return;
+    }
 
     if (voice.recognition) {
       try { voice.recognition.stop(); } catch (e) {}
@@ -1074,6 +1206,13 @@
       if (!voicePanel.contains(e.target) && e.target !== voiceSettingsBtn) {
         voicePanel.classList.remove('open');
       }
+    });
+  }
+  if (voiceSourceSel) {
+    voiceSourceSel.addEventListener('change', () => {
+      voice.source = voiceSourceSel.value;
+      localStorage.setItem('sss_voice_source', voice.source);
+      updateVoiceHint();
     });
   }
   if (voiceEngineSel) {
