@@ -269,6 +269,62 @@
     .answer-content th, .answer-content td{ white-space:normal; min-width:110px; }
   }
 
+  /* ---------- voice input ---------- */
+  .composer button.mic.listening{
+    background:#E4574C; color:#fff;
+    animation:micPulse 1.2s ease-in-out infinite;
+  }
+  @keyframes micPulse{
+    0%,100%{ box-shadow:0 0 0 0 rgba(228,87,76,.55); }
+    70%    { box-shadow:0 0 0 9px rgba(228,87,76,0); }
+  }
+  /* Interim words appear greyed until the engine commits them. */
+  #questionInput.interim{ color:var(--text-muted); font-style:italic; }
+
+  .voice-status{
+    /* Anchored to .composer-wrap, sitting just above the input row. */
+    position:absolute; left:16px; right:16px; bottom:74px;
+    display:none;
+    font-size:11.5px; color:var(--text-muted);
+    text-align:center;
+  }
+  .voice-status.show{ display:block; }
+  .voice-status b{ color:var(--text); font-weight:600; }
+
+  .voice-panel{
+    position:absolute; right:16px; bottom:74px;
+    width:270px;
+    background:#1B1F38;
+    border:1px solid var(--panel-border);
+    border-radius:14px;
+    padding:12px;
+    box-shadow:0 12px 34px rgba(0,0,0,.45);
+    display:none;
+    z-index:40;
+    text-align:left;
+  }
+  .voice-panel.open{ display:block; }
+  .voice-panel h4{
+    margin:0 0 8px; font-size:12px; letter-spacing:.02em;
+    text-transform:uppercase; color:var(--text-faint);
+  }
+  .voice-panel label{
+    display:block; font-size:12px; color:var(--text-muted);
+    margin:10px 0 4px;
+  }
+  .voice-panel select{
+    width:100%; padding:7px 8px; font-size:12.5px; font-family:inherit;
+    color:var(--text); background:rgba(255,255,255,.06);
+    border:1px solid var(--panel-border); border-radius:9px;
+  }
+  .voice-panel .hint{
+    margin:8px 0 0; font-size:11px; line-height:1.5; color:var(--text-faint);
+  }
+  .voice-panel .row{
+    display:flex; align-items:center; gap:8px; margin-top:10px;
+    font-size:12px; color:var(--text-muted);
+  }
+
   .answered-by{
     display:inline-flex; align-items:center; gap:5px;
     font-size:10.5px; font-weight:700;
@@ -672,9 +728,30 @@
       </div>
 
       <div class="composer-wrap">
+        <div class="voice-status" id="voiceStatus"></div>
+        <div class="voice-panel" id="voicePanel">
+          <h4>Voice input</h4>
+          <label for="voiceEngine">Transcription</label>
+          <select id="voiceEngine"></select>
+          <label for="voiceLang">Language</label>
+          <select id="voiceLang"></select>
+          <div class="row">
+            <input type="checkbox" id="voiceAutoSend">
+            <label for="voiceAutoSend" style="margin:0;">Send automatically when I stop talking</label>
+          </div>
+          <p class="hint" id="voiceHint"></p>
+        </div>
         <form class="composer" id="composerForm">
           <button type="button" class="util" id="suggestBtn" title="Show topics">＋</button>
           <input type="text" id="questionInput" placeholder="Ask anything…" autocomplete="off">
+          <button type="button" class="util mic" id="micBtn" title="Ask by voice" aria-label="Ask by voice">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+            </svg>
+          </button>
+          <button type="button" class="util" id="voiceSettingsBtn" title="Voice settings" aria-label="Voice settings">⚙</button>
           <button type="submit" class="send-btn" id="sendBtn" aria-label="Send">
             <svg viewBox="0 0 24 24" fill="none"><path d="M4 12L20 4L13 20L11 13L4 12Z" fill="currentColor"/></svg>
           </button>
@@ -734,6 +811,291 @@
   }
 
   // Load sample questions from backend
+  // ---------- voice input ----------
+  // Two engines, because neither alone is both instant and accurate:
+  //   browser  Web Speech API. Interim words appear as you speak (no
+  //            perceptible delay) but it mangles terms like SCD and BCNF.
+  //   whisper  Groq whisper-large-v3-turbo. ~0.7s after you stop, but it gets
+  //            the ETL vocabulary right.
+  // "hybrid" shows the browser's live text, then replaces it with the corrected
+  // transcript, so the student sees words immediately and submits accurate text.
+  const voice = {
+    cfg: null,
+    engine: localStorage.getItem('sss_voice_engine') || 'hybrid',
+    lang: localStorage.getItem('sss_voice_lang') || 'en-IN',
+    autoSend: localStorage.getItem('sss_voice_autosend') === '1',
+    recognition: null,
+    listening: false,
+    finalText: '',
+    recorder: null,
+    chunks: [],
+    silenceTimer: null,
+    stream: null,
+  };
+
+  const micBtn = document.getElementById('micBtn');
+  const voiceSettingsBtn = document.getElementById('voiceSettingsBtn');
+  const voicePanel = document.getElementById('voicePanel');
+  const voiceStatus = document.getElementById('voiceStatus');
+  const voiceEngineSel = document.getElementById('voiceEngine');
+  const voiceLangSel = document.getElementById('voiceLang');
+  const voiceAutoSend = document.getElementById('voiceAutoSend');
+  const voiceHint = document.getElementById('voiceHint');
+
+  const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  function setVoiceStatus(html) {
+    if (!voiceStatus) return;
+    if (html) { voiceStatus.innerHTML = html; voiceStatus.classList.add('show'); }
+    else { voiceStatus.classList.remove('show'); }
+  }
+
+  async function loadVoiceConfig() {
+    try {
+      const res = await fetch('/api/voice/config');
+      if (!res.ok) return;
+      voice.cfg = await res.json();
+    } catch (err) {
+      // Voice is an enhancement; typing always works.
+      voice.cfg = null;
+    }
+    if (!micBtn) return;
+
+    const online = voice.cfg && voice.cfg.online_available;
+    // Without the Web Speech API there is no live path, and without a key there
+    // is no accurate path. If neither exists, hide the button rather than
+    // offering something that cannot work.
+    if (!SpeechRec && !online) {
+      micBtn.style.display = 'none';
+      if (voiceSettingsBtn) voiceSettingsBtn.style.display = 'none';
+      return;
+    }
+    if (!SpeechRec && voice.engine !== 'whisper') voice.engine = 'whisper';
+    if (!online && voice.engine !== 'browser') voice.engine = 'browser';
+
+    const engines = (voice.cfg && voice.cfg.engines) || [];
+    voiceEngineSel.innerHTML = '';
+    engines.forEach(e => {
+      if (e.id !== 'browser' && !online) return;
+      if (e.id !== 'whisper' && !SpeechRec) return;
+      const o = document.createElement('option');
+      o.value = e.id; o.textContent = e.label; o.dataset.blurb = e.blurb || '';
+      voiceEngineSel.appendChild(o);
+    });
+    voiceEngineSel.value = voice.engine;
+
+    const langs = (voice.cfg && voice.cfg.languages) || [];
+    voiceLangSel.innerHTML = '';
+    langs.forEach(l => {
+      const o = document.createElement('option');
+      o.value = l.id; o.textContent = l.label;
+      voiceLangSel.appendChild(o);
+    });
+    voiceLangSel.value = voice.lang;
+    voiceAutoSend.checked = voice.autoSend;
+    updateVoiceHint();
+  }
+
+  function updateVoiceHint() {
+    const opt = voiceEngineSel.selectedOptions[0];
+    voiceHint.textContent = opt ? (opt.dataset.blurb || '') : '';
+  }
+
+  // ---- browser engine ----
+  function startBrowserRecognition(onFinal) {
+    const rec = new SpeechRec();
+    rec.lang = voice.lang;
+    rec.interimResults = true;      // this is what makes it feel instant
+    rec.continuous = true;
+    rec.maxAlternatives = 1;
+    voice.finalText = '';
+
+    rec.onresult = (ev) => {
+      let interim = '';
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const chunk = ev.results[i][0].transcript;
+        if (ev.results[i].isFinal) voice.finalText += chunk;
+        else interim += chunk;
+      }
+      const shown = (voice.finalText + interim).trim();
+      input.value = shown;
+      input.classList.toggle('interim', !!interim);
+      // Restart the silence countdown whenever speech arrives.
+      if (voice.silenceTimer) clearTimeout(voice.silenceTimer);
+      const wait = (voice.cfg && voice.cfg.silence_ms) || 1500;
+      voice.silenceTimer = setTimeout(() => stopListening(), wait);
+    };
+    rec.onerror = (ev) => {
+      if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
+        setVoiceStatus('Microphone access was blocked. Allow it in your browser settings.');
+      } else if (ev.error !== 'aborted' && ev.error !== 'no-speech') {
+        setVoiceStatus('Voice input stopped: ' + ev.error);
+      }
+      stopListening(true);
+    };
+    rec.onend = () => {
+      if (voice.listening) stopListening();
+    };
+    rec.start();
+    return rec;
+  }
+
+  // ---- whisper engine ----
+  async function startRecording() {
+    voice.stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const rec = new MediaRecorder(voice.stream);
+    voice.chunks = [];
+    rec.ondataavailable = (e) => { if (e.data.size) voice.chunks.push(e.data); };
+    rec.start();
+    return rec;
+  }
+
+  async function transcribeRecording() {
+    if (!voice.chunks.length) return null;
+    const blob = new Blob(voice.chunks, { type: 'audio/webm' });
+    const form = new FormData();
+    form.append('audio', blob, 'audio.webm');
+    form.append('language', voice.lang);
+    try {
+      const res = await fetch('/api/voice/transcribe', { method: 'POST', body: form });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setVoiceStatus(err.detail || 'Could not transcribe that.');
+        return null;
+      }
+      return await res.json();
+    } catch (err) {
+      setVoiceStatus('Could not reach transcription. Type the question instead.');
+      return null;
+    }
+  }
+
+  // Map browser-transcribed text onto the notes' vocabulary, so "sed type two"
+  // becomes "SCD Type 2" and retrieval can actually match it.
+  async function correctText(text) {
+    if (!text) return text;
+    try {
+      const res = await fetch('/api/voice/correct', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      if (!res.ok) return text;
+      return (await res.json()).text || text;
+    } catch (err) { return text; }
+  }
+
+  async function startListening() {
+    if (voice.listening) return;
+    voice.listening = true;
+    micBtn.classList.add('listening');
+    input.classList.remove('interim');
+    setVoiceStatus('Listening… <b>speak now</b>');
+
+    try {
+      if (voice.engine === 'whisper') {
+        voice.recorder = await startRecording();
+      } else {
+        voice.recognition = startBrowserRecognition();
+        if (voice.engine === 'hybrid' && voice.cfg && voice.cfg.online_available) {
+          // Record in parallel so the live text can be replaced by an accurate
+          // transcript once the student stops.
+          try { voice.recorder = await startRecording(); } catch (e) { voice.recorder = null; }
+        }
+      }
+    } catch (err) {
+      setVoiceStatus('Could not start the microphone. Check permissions.');
+      voice.listening = false;
+      micBtn.classList.remove('listening');
+    }
+  }
+
+  async function stopListening(silent) {
+    if (!voice.listening) return;
+    voice.listening = false;
+    micBtn.classList.remove('listening');
+    if (voice.silenceTimer) { clearTimeout(voice.silenceTimer); voice.silenceTimer = null; }
+
+    if (voice.recognition) {
+      try { voice.recognition.stop(); } catch (e) {}
+      voice.recognition = null;
+    }
+
+    const recorder = voice.recorder;
+    voice.recorder = null;
+    let refined = null;
+
+    if (recorder && recorder.state !== 'inactive') {
+      const stopped = new Promise(r => { recorder.onstop = r; });
+      recorder.stop();
+      await stopped;
+      if (voice.stream) { voice.stream.getTracks().forEach(t => t.stop()); voice.stream = null; }
+      if (!silent) {
+        setVoiceStatus('Transcribing…');
+        refined = await transcribeRecording();
+      }
+    } else if (voice.stream) {
+      voice.stream.getTracks().forEach(t => t.stop());
+      voice.stream = null;
+    }
+
+    input.classList.remove('interim');
+
+    let text = (refined && refined.text) || input.value.trim();
+    if (!refined && text) text = await correctText(text);
+    input.value = text;
+
+    if (!text) { setVoiceStatus(''); return; }
+    if (refined && refined.transcribe_ms) {
+      setVoiceStatus(`Transcribed in <b>${refined.transcribe_ms} ms</b>`);
+      setTimeout(() => setVoiceStatus(''), 2200);
+    } else {
+      setVoiceStatus('');
+    }
+
+    if (voice.autoSend && !silent) {
+      form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+    } else {
+      input.focus();
+    }
+  }
+
+  if (micBtn) {
+    micBtn.addEventListener('click', () => {
+      if (voice.listening) stopListening(); else startListening();
+    });
+  }
+  if (voiceSettingsBtn) {
+    voiceSettingsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      voicePanel.classList.toggle('open');
+    });
+    document.addEventListener('click', (e) => {
+      if (!voicePanel.contains(e.target) && e.target !== voiceSettingsBtn) {
+        voicePanel.classList.remove('open');
+      }
+    });
+  }
+  if (voiceEngineSel) {
+    voiceEngineSel.addEventListener('change', () => {
+      voice.engine = voiceEngineSel.value;
+      localStorage.setItem('sss_voice_engine', voice.engine);
+      updateVoiceHint();
+    });
+  }
+  if (voiceLangSel) {
+    voiceLangSel.addEventListener('change', () => {
+      voice.lang = voiceLangSel.value;
+      localStorage.setItem('sss_voice_lang', voice.lang);
+    });
+  }
+  if (voiceAutoSend) {
+    voiceAutoSend.addEventListener('change', () => {
+      voice.autoSend = voiceAutoSend.checked;
+      localStorage.setItem('sss_voice_autosend', voice.autoSend ? '1' : '0');
+    });
+  }
+
   // ---------- model picker ----------
   function modelById(id) {
     return availableModels.find(m => m.id === id) || null;
@@ -1464,6 +1826,7 @@
 
   renderDrawer();
   loadModels();
+  loadVoiceConfig();
   loadSampleQuestions();
 })();
 </script>

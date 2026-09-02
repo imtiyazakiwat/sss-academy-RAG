@@ -9,12 +9,13 @@ import time
 from typing import Optional
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+import config
 from config import HOST, PORT
 from models.local_llm import scrub_answer
 from rag.rag_system import RAGSystem
@@ -31,6 +32,11 @@ app.add_middleware(
 
 # Load RAG system at startup (index + local LLM resident in memory)
 qa_system = RAGSystem(load_llm=True)
+
+# Speech to text. Constructed once; reports unavailable rather than failing if no
+# key is configured, so the on-device path still works.
+from models.transcription import Transcriber
+transcriber = Transcriber()
 
 
 class QueryRequest(BaseModel):
@@ -63,6 +69,80 @@ class QueryResponse(BaseModel):
 def health_check():
     h = qa_system.health()
     return h
+
+
+@app.get("/api/voice/config")
+def voice_config():
+    """What the client should use for speech input."""
+    return {
+        "engines": [
+            {"id": "browser", "label": "Instant (on-device)",
+             "blurb": "Words appear as you speak. Weaker on terms like SCD."},
+            {"id": "hybrid", "label": "Instant + corrected",
+             "blurb": "Live text while speaking, then corrected for accuracy."},
+            {"id": "whisper", "label": "Accurate (online)",
+             "blurb": "About 0.7s after you stop. Best on ETL terms."},
+        ],
+        "default_engine": (config.VOICE_DEFAULT_ENGINE
+                           if transcriber.is_loaded else "browser"),
+        "default_language": config.VOICE_DEFAULT_LANGUAGE,
+        "languages": [
+            {"id": "en-IN", "label": "English (India)"},
+            {"id": "en-US", "label": "English (US)"},
+            {"id": "en-GB", "label": "English (UK)"},
+            {"id": "hi-IN", "label": "Hindi"},
+            {"id": "kn-IN", "label": "Kannada"},
+            {"id": "te-IN", "label": "Telugu"},
+            {"id": "ta-IN", "label": "Tamil"},
+            {"id": "mr-IN", "label": "Marathi"},
+        ],
+        "silence_ms": config.VOICE_SILENCE_MS,
+        # Only offer the online engines when a key is actually configured.
+        "online_available": transcriber.is_loaded,
+    }
+
+
+@app.post("/api/voice/transcribe")
+async def voice_transcribe(
+    audio: UploadFile = File(...),
+    language: Optional[str] = Form(None),
+):
+    """Transcribe a recorded clip and normalise it to the notes' vocabulary."""
+    if not transcriber.is_loaded:
+        raise HTTPException(
+            status_code=503,
+            detail="Online transcription is not configured. Use on-device instead.",
+        )
+    data = await audio.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty audio upload.")
+    if len(data) > config.VOICE_MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Recording too long.")
+
+    # Whisper picks the language itself when none is given, which is better than
+    # forcing the wrong one.
+    lang = (language or "").split("-")[0] or None
+    result = transcriber.transcribe(
+        data, filename=audio.filename or "audio.webm", language=lang
+    )
+    if result.get("error"):
+        raise HTTPException(status_code=502, detail=result["error"])
+    return {
+        "text": result["text"],
+        "raw": result["raw"],
+        "transcribe_ms": round(result["ms"]),
+    }
+
+
+@app.post("/api/voice/correct")
+def voice_correct(payload: dict):
+    """Normalise text the browser already transcribed, with no audio upload.
+
+    The browser engine is fast but mangles domain terms; this maps them back to
+    the notes' spelling so retrieval can match them."""
+    from models.transcription import correct_transcript
+    text = (payload or {}).get("text", "")
+    return {"text": correct_transcript(text)}
 
 
 @app.get("/api/models")

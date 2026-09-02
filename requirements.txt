@@ -1,0 +1,33 @@
+# Pinned so a fresh clone reproduces the environment these results were
+# measured on. Apple Silicon only: mlx and mlx-metal have no other build.
+#
+#   python3 -m venv venv && venv/bin/pip install -r requirements.txt
+#   venv/bin/python knowledge_base/build_index.py
+#   venv/bin/python app.py
+
+# Web layer
+fastapi==0.141.1
+uvicorn==0.52.4
+pydantic==2.13.5
+# Required by FastAPI to accept the audio upload on /api/voice/transcribe.
+python-multipart==0.0.20
+
+# Local generation on Apple Silicon
+mlx==0.32.2
+mlx-metal==0.32.2
+mlx-lm==0.31.3
+
+# Retrieval: embeddings, vector search, keyword search, reranking
+sentence-transformers==6.0.0
+faiss-cpu==1.15.0
+rank-bm25==0.2.2
+torch==2.13.0
+transformers==5.16.1
+numpy==2.5.2
+
+# Knowledge base extraction, including table-aware PDF parsing
+pymupdf==1.28.2
+
+# Optional: the "Best (online)" model and Whisper transcription.
+# Needs GROQ_API_KEY in .env; everything else works offline without it.
+groq==1.7.0

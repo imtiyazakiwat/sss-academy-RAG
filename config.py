@@ -108,6 +108,23 @@ MODELS = {
 # Groq
 # ---------------------------------------------------------------------------
 GROQ_TIMEOUT_S = 45
+
+# ---------------------------------------------------------------------------
+# Speech to text
+# ---------------------------------------------------------------------------
+# whisper-large-v3-turbo measured at 640-860 ms round trip for 3-4 s of speech,
+# and it gets "SCD Type 2", "de-normalized" and "BCNF" right. whisper-large-v3
+# is slightly slower with no accuracy gain on this vocabulary.
+TRANSCRIBE_MODEL = "whisper-large-v3-turbo"
+# Which engine the UI uses by default. "browser" streams interim words with no
+# perceptible delay; "whisper" is accurate but ~700 ms; "hybrid" shows the
+# browser's live text and corrects it with Whisper on stop.
+VOICE_DEFAULT_ENGINE = "hybrid"
+VOICE_DEFAULT_LANGUAGE = "en-IN"
+# Stop listening after this much silence.
+VOICE_SILENCE_MS = 1500
+# Reject absurdly large uploads outright.
+VOICE_MAX_UPLOAD_BYTES = 8_000_000
 # Reasoning models spend part of the budget thinking before answering, and
 # gpt-oss-120b was observed consuming an entire 700-token budget on reasoning
 # and returning empty content. Remote budgets are scaled up to leave room.
