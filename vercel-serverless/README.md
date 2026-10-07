@@ -1,72 +1,53 @@
 # Vercel serverless backend for Pluely (Gemini chat + Groq Whisper STT)
 
-A direct forwarder written in TypeScript (Node 22, zero runtime dependencies). It authenticates, translates the request
-shape, calls Gemini or Groq Whisper, and translates the response back. There is no RAG, no bundled knowledge base and no
-prompt building. Pluely supplies the system prompt, history and image.
+A direct forwarder written in TypeScript (Node 22, no runtime dependencies). It has no RAG, no prompt building and no
+transcript post-processing. Pluely supplies the system prompt, history and image, and this API passes them to Gemini.
+Audio goes to Groq `whisper-large-v3-turbo`, the same model as the local Python backend.
 
-The Python app in the repo root is untouched. The older `../vercel-deploy/` (Python/FastAPI) is also untouched.
+Every endpoint needs `Authorization: Bearer <APP_API_KEY>` (or `x-api-key`). Missing or wrong token returns 401. If
+`APP_API_KEY` is not set on the server, every request returns 500 (fails closed). Only CORS preflight (`OPTIONS`) is open.
 
 ## Endpoints
 
-Every endpoint except the CORS `OPTIONS` preflight needs `Authorization: Bearer <APP_API_KEY>` or `x-api-key: <APP_API_KEY>`.
-Missing or wrong token gives `401`. If `APP_API_KEY` is not set on the server, every call fails closed with `500`.
+| Route | Aliases | Purpose |
+|---|---|---|
+| `GET /api/health` | `/health` | Status, key counts, models (no key material) |
+| `POST /api/chat` | `/v1/chat/completions`, `/chat/completions` | Gemini chat, OpenAI-compatible (optional streaming) |
+| `POST /api/stt` | `/v1/audio/transcriptions`, `/audio/transcriptions` | Groq Whisper, returns `{ "text": "..." }` |
+| `GET /api/models` | `/v1/models`, `/models` | Model list |
 
-| Path | Alias | Method | Purpose |
-|---|---|---|---|
-| `/api/chat` | `/v1/chat/completions`, `/chat/completions` | POST | OpenAI-compatible chat, forwarded to Gemini (text + optional image, streaming optional) |
-| `/api/stt` | `/v1/audio/transcriptions`, `/audio/transcriptions` | POST | Speech to text via Groq Whisper, returns `{ "text": "..." }` |
-| `/api/health` | `/health` | GET | Config status (key counts, model names, never key values) |
-| `/api/models` | `/v1/models`, `/models` | GET | Model list |
-
-Chat accepts either the OpenAI body (`messages`, what Pluely sends) or a simple body
-`{ "system", "text" | "question" | "prompt", "image", "history": [{"q","a"}] }`. Non-stream responses contain
-`choices[0].message.content` and a top-level `answer`.
-
-Defaults: model `gemini-3.5-flash-lite` (override with `GEMINI_MODEL` or a request `model` like `gemini-3.8-flash`),
-STT model `whisper-large-v3-turbo`.
-
-Gemini backend is chosen per key, like the local app: keys starting `AIzaSy` use AI Studio, any other key uses Vertex AI
-express mode (`VERTEX_PROJECT_ID`, `VERTEX_LOCATION`).
+Limits: Vercel caps request bodies at about 4.5 MB. Audio is capped at 4,000,000 bytes (413 above that), and base64 JSON
+inflates audio by about 33 percent. Send short audio chunks. `maxDuration` is 60 s for chat and STT.
+Not verified here: Vercel's own 4.5 MB enforcement and the function `maxDuration` (needs a real deploy).
 
 ## Environment variables
 
-Names only are in `.env.example`. Set real values on Vercel, never in a committed file:
+Names only are in `.env.example`. Set values in Vercel, never in a committed file:
 
 ```bash
 cd vercel-serverless
-vercel link                      # choose the existing project "vercel-deploy" to keep its URL, or create a new one
-vercel env add APP_API_KEY production      # shared secret; this is what Pluely sends
-vercel env add GEMINI_API_KEY production   # one key, or comma-separated list (rotates on 429)
+vercel link                          # pick the existing project to keep its URL, or create a new one
+vercel env add APP_API_KEY production      # the shared secret Pluely will send
+vercel env add GEMINI_API_KEY production   # one key or comma-separated list (rotates on 429)
 vercel env add GROQ_API_KEYS production    # comma-separated Groq keys (fallback name: GROQ_API_KEY)
-# optional
-vercel env add GEMINI_MODEL production
-vercel env add STT_MODEL production
-vercel env add STT_PROMPT production
-vercel env add VERTEX_PROJECT_ID production
-vercel env add VERTEX_LOCATION production
-```
-
-Other optional names: `GEMINI_THINKING_BUDGET` (default `0`, empty string omits it), `GEMINI_MAX_OUTPUT_TOKENS`
-(default `2048`), `GEMINI_MAX_RETRIES` (default `2`), `GEMINI_RETRY_BASE_MS` (default `1000`), `CORS_ALLOW_ORIGIN` (default `*`).
-
-Generate a strong `APP_API_KEY`, for example `openssl rand -hex 32`.
-
-## Deploy
-
-```bash
+# optional: GEMINI_MODEL, GEMINI_THINKING_BUDGET, GEMINI_MAX_OUTPUT_TOKENS, GEMINI_MAX_RETRIES,
+#           VERTEX_PROJECT_ID, VERTEX_LOCATION, STT_MODEL, STT_PROMPT, CORS_ALLOW_ORIGIN
 vercel --prod
-APP_API_KEY=... scripts/smoke.sh https://YOUR-APP.vercel.app          # optional: SMOKE_AUDIO=/path/short.wav
 ```
 
-`vercel.json` sets `maxDuration` to 60 s for chat and STT (the Hobby ceiling without Fluid compute).
-
-## Limits
-
-- Vercel rejects request bodies above about 4.5 MB. Audio is capped at 4,000,000 bytes (`413` above that).
-  Send short clips. JSON base64 inflates audio by about 33 %, so JSON mode fits roughly 3 MB of raw audio in practice.
-- Images are sent inline as base64 inside the same 4.5 MB body limit. Allowed types: JPEG, PNG, WebP, GIF.
-- There is no rate limiting beyond the upstream quotas. Anyone holding `APP_API_KEY` can spend your Gemini and Groq quota.
-- Vercel Deployment Protection can answer with an HTML 401 on protected (preview) URLs. Use the production domain.
+| Name | Required | Default |
+|---|---|---|
+| `APP_API_KEY` | yes | none (unset = 500) |
+| `GEMINI_API_KEY` | yes (chat) | none. `AIzaSy...` keys use AI Studio, other keys use Vertex express |
+| `GEMINI_MODEL` | no | `gemini-3.5-flash-lite` (requests may send any `gemini-*` id, e.g. `gemini-3.8-flash`) |
+| `GEMINI_THINKING_BUDGET` | no | `0`; empty string omits `thinkingConfig` |
+| `GEMINI_MAX_OUTPUT_TOKENS` | no | `2048` |
+| `GEMINI_MAX_RETRIES` | no | `2` (switches key first on 429/503, else backs off) |
+| `GEMINI_RETRY_BASE_MS` | no | `1000` |
+| `VERTEX_PROJECT_ID` / `VERTEX_LOCATION` | no | `patil-hospital-pos` / `global` (same as local `config.py`) |
+| `GROQ_API_KEYS` | yes (STT) | none |
+| `STT_MODEL` / `STT_PROMPT` | no | `whisper-large-v3-turbo` / unset |
+| `CORS_ALLOW_ORIGIN` | no | `*` |
 
 ## curl examples
 
@@ -75,45 +56,43 @@ export URL=https://YOUR-APP.vercel.app
 export KEY=<your APP_API_KEY>
 
 # health
-curl -s "$URL/api/health" -H "Authorization: Bearer $KEY"
+curl -s $URL/api/health -H "Authorization: Bearer $KEY"
 
-# chat, OpenAI shape (what Pluely sends)
-curl -s "$URL/v1/chat/completions" \
+# chat, OpenAI shape (what Pluely sends). Answer is at choices[0].message.content
+curl -s $URL/v1/chat/completions \
   -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-  -d '{"messages":[{"role":"system","content":"Answer in 3 bullets."},{"role":"user","content":"What is SCD Type 2?"}]}'
+  -d '{"messages":[{"role":"system","content":"Be brief."},{"role":"user","content":"What is SCD Type 2?"}]}'
 
-# chat, simple shape
-curl -s "$URL/api/chat" \
+# chat, simple shape (answer is also at top-level "answer"); add "image":"data:image/png;base64,..." for a screenshot
+curl -s $URL/api/chat \
   -H "x-api-key: $KEY" -H "Content-Type: application/json" \
-  -d '{"system":"Answer in 3 bullets.","text":"What is SCD Type 2?"}'
+  -d '{"system":"Be brief.","text":"What is ETL?"}'
 
-# chat with an image (base64 data URL) and streaming
-curl -N "$URL/v1/chat/completions" \
-  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
-  -d '{"stream":true,"messages":[{"role":"user","content":[{"type":"text","text":"Describe this"},{"type":"image_url","image_url":{"url":"data:image/png;base64,<BASE64>"}}]}]}'
+# chat, streaming (SSE, ends with data: [DONE])
+curl -N $URL/v1/chat/completions -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+  -d '{"stream":true,"messages":[{"role":"user","content":"Explain ETL testing"}]}'
 
-# speech to text, multipart upload
-curl -s -X POST "$URL/v1/audio/transcriptions" \
-  -H "Authorization: Bearer $KEY" \
-  -F "file=@clip.wav" -F "model=whisper-large-v3-turbo" -F "language=en"
+# STT, multipart (what Pluely sends)
+curl -s $URL/v1/audio/transcriptions -H "Authorization: Bearer $KEY" \
+  -F "file=@clip.wav" -F language=en
+# -> {"text":"..."}
 
-# speech to text, base64 JSON
-curl -s -X POST "$URL/api/stt" \
-  -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
+# STT, raw body and base64 JSON
+curl -s "$URL/api/stt?language=en" -H "Authorization: Bearer $KEY" -H "Content-Type: audio/wav" --data-binary @clip.wav
+curl -s $URL/api/stt -H "Authorization: Bearer $KEY" -H "Content-Type: application/json" \
   -d "{\"audio\":\"$(base64 < clip.wav | tr -d '\n')\",\"language\":\"en\"}"
-
-# speech to text, raw body
-curl -s -X POST "$URL/api/stt?language=en" \
-  -H "Authorization: Bearer $KEY" -H "Content-Type: audio/wav" --data-binary @clip.wav
 ```
 
-## Pluely setup
+`scripts/smoke.sh https://YOUR-APP.vercel.app` runs the checks against a deployed URL (`APP_API_KEY` from the environment,
+optional `SMOKE_AUDIO=clip.wav`).
 
-Both templates are also in `pluely/`. Replace `YOUR-APP.vercel.app` with your production domain.
+## Pluely setup (Dev Space)
 
-### Custom AI provider (Dev Space, Custom Providers (AI))
+Replace `YOUR-APP.vercel.app` with your production domain. Full copies with notes are in `pluely/`.
+Create the variables `API_KEY` (the `APP_API_KEY` value) and `MODEL` in Pluely for each provider.
 
-Curl command:
+Custom AI provider. Response Content Path: `choices[0].message.content`. Streaming: on (off also works). Variable
+`MODEL` = `gemini-3.5-flash-lite`.
 
 ```bash
 curl https://YOUR-APP.vercel.app/v1/chat/completions \
@@ -125,13 +104,7 @@ curl https://YOUR-APP.vercel.app/v1/chat/completions \
   }'
 ```
 
-- Response Content Path: `choices[0].message.content`
-- Streaming: ON (recommended, OFF also works)
-- Variables: `API_KEY` = your `APP_API_KEY` value, `MODEL` = `gemini-3.5-flash-lite`
-
-### Custom STT provider (Dev Space, Custom STT Providers)
-
-Curl command:
+Custom STT provider. Response Content Path: `text`. Streaming: off. Variable `MODEL` = `whisper-large-v3-turbo`.
 
 ```bash
 curl -X POST "https://YOUR-APP.vercel.app/v1/audio/transcriptions" \
@@ -141,44 +114,33 @@ curl -X POST "https://YOUR-APP.vercel.app/v1/audio/transcriptions" \
   -F language=en
 ```
 
-- Response Content Path: `text`
-- Streaming: OFF
-- Variables: `API_KEY` = your `APP_API_KEY` value, `MODEL` = `whisper-large-v3-turbo`
+Use the production domain. Vercel Deployment Protection can answer protected preview URLs with an HTML 401.
 
-Pluely sends its own system prompt, so answer style (for example 80-150 words in bullets) is controlled there.
-The local app's RAG prompt rules are deliberately not ported.
+## Security notes
 
-## Development
+- No rate limiting beyond the upstream quotas. Anyone with `APP_API_KEY` can spend your Gemini and Groq quota.
+- Keys are read from env vars only, sent in headers (never URLs), redacted from error text, and never returned.
+- `.gitignore` excludes `.env*` (except `.env.example`), `.vercel` and `node_modules`. It also re-includes `lib/`
+  because the repo-root `.gitignore` ignores every `lib/` directory.
 
-```bash
-npm install
-npm run typecheck
-npm test
-```
+## Verification record
 
-## Verification record (what was run, before handoff)
+Run in `vercel-serverless/` on Node v22.18.0, TypeScript 7.0.2, vitest 5.0.3:
 
-Run from `vercel-serverless/` on Node v22.18.0, npm 10.9.3, TypeScript 7.0.2, Vitest 5.0.3.
+- `npm run typecheck` (`tsc --noEmit`): no errors. Confirmed it detects errors by adding a deliberate type error, then removing it.
+- `npm test` (`vitest run`): 5 files, 83 tests, all pass.
+  - `auth-cors`: 401 for missing/wrong Bearer and `x-api-key`, 500 when `APP_API_KEY` is unset, OPTIONS 204 without auth,
+    CORS headers on 401/405, 413 for oversize Content-Length, health has no key material (all four handlers).
+  - `chat`: request translation (system, merged turns, images, placeholder image dropped, Vertex vs AI Studio URL and
+    headers), response shape, streaming including split SSE lines, key rotation, retries, thinking fallback, error redaction.
+  - `stt`: multipart, JSON base64, raw body, limits (400/413/415), key rotation, error mapping.
+  - `http-e2e`: a real `node:http` server routes through the `vercel.json` rewrites into the `api/*.ts` exports and is called
+    over real HTTP: health, 401 on every route, OPTIONS 204, chat (Pluely-shaped body), streaming to `[DONE]`, STT multipart.
+- `bash -n scripts/smoke.sh`: syntax OK. Not run against any live URL.
+- Secret scan: `grep -rE "AIzaSy[A-Za-z0-9_-]{20,}|gsk_[A-Za-z0-9]{20,}" vercel-serverless --exclude-dir=node_modules`
+  finds nothing. `git check-ignore` confirms `.env`, `.env.local`, `node_modules` and `.vercel` are ignored.
 
-| Check | Result |
-|---|---|
-| `npm run typecheck` (`tsc --noEmit`, strict) | passes, no errors. Confirmed it catches errors by adding a temporary bad file (removed) |
-| `npm test` (`vitest run`) | 5 files, 83 tests, all pass |
-| `bash -n scripts/smoke.sh` | syntax OK (script NOT run against any URL) |
-| Secret scan `grep -rE "AIzaSy[A-Za-z0-9_-]{20,}\|gsk_[A-Za-z0-9]{20,}"` outside node_modules | no matches |
-| Values from repo `.env` and `groq_keys.json` searched in this folder (values not printed) | 0 files contain any |
-| `git check-ignore` | `.env`, `.env.local`, `node_modules`, `.vercel` are ignored; `lib/` is not (repo-root rule ignores `lib/`, re-included in this folder's `.gitignore`) |
-| `vercel-deploy/` and the Python backend | not modified by this work |
-
-What the tests cover, all with upstream calls MOCKED (stubbed `fetch`; no real Gemini or Groq call was made, no real keys were used):
-
-- Auth on all 4 endpoints: 401 without/with wrong Bearer or `x-api-key`, 500 fail-closed when `APP_API_KEY` is unset, 405 with `Allow`, 413 on oversize `Content-Length`, OPTIONS 204 without auth, CORS headers on 2xx/4xx/5xx and SSE.
-- Chat: request translation to Gemini (AI Studio URL and Vertex express URL/headers, `systemInstruction`, role merge, `inlineData`, empty placeholder image dropped, raw base64 mime sniffing, bad images and bad last turn give 400), OpenAI response shape with `answer`, SSE chunks ending in `[DONE]` including a line split across network chunks, mid-stream failure chunk, 429 key rotation and bounded retries, 503 retry, thinking-config fallback, 3.8 omits temperature, model override rules, error bodies and keys never leaked.
-- STT: multipart, JSON base64 (with and without `data:` prefix), raw body, language `en-IN` to `en`, model allow-list, `STT_PROMPT`, empty (400) and oversize (413), 429 and 401 key rotation, friendly error messages, no key leakage.
-- `tests/http-e2e.test.ts`: a real `node:http` server routes requests through the `vercel.json` rewrites into the `api/*.ts` exports and is called over real HTTP (health, 401 on all routes, preflight, chat, chat streaming, multipart STT). Upstream calls are mocked here too.
-
-NOT verified (cannot be without deploying or real keys):
-
-- Real Gemini (AI Studio and Vertex express) and real Groq responses, including the exact model ids `gemini-3.5-flash-lite` and `gemini-3.8-flash` (taken from the repo's own config).
-- Vercel's runtime handling of the Web-standard `export function POST(request: Request)` handlers and the `vercel.json` rewrites. `vercel dev` and `vercel build` were not run because they need the project linked and logged in, and this task forbids deploys.
-- Pluely's own behaviour with the templates (built from Pluely's documented and source-level behaviour).
+Verified with mocks only: every Gemini and Groq call (global `fetch` is stubbed in all tests; fake keys only).
+Not verified: real Gemini/Vertex and Groq responses, Vercel's runtime handling of `export function POST(request)`,
+the rewrites, `maxDuration` and the 4.5 MB limit on a real deployment, and `vercel dev` (not run, it needs a linked project).
+The Pluely field formats come from the Pluely docs and source as recorded in the plan, not from running Pluely.
