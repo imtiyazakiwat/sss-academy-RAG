@@ -94,14 +94,14 @@ describe("health", () => {
     const text = await res.text();
     const body = JSON.parse(text);
     expect(body.status).toBe("ok");
-    expect(body.gemini).toMatchObject({ configured: true, keys: 2, backend: "mixed", model: "gemini-3.5-flash-lite" });
+    expect(body.gemini).toMatchObject({ configured: true, keys: 2, backend: "mixed", model: "gemini-3.5-flash-lite", allowed_models: ["gemini-3.5-flash-lite", "gemini-3.8-flash"] });
     expect(body.stt).toMatchObject({ configured: true, keys: 1, model: "whisper-large-v3-turbo" });
     for (const secret of [APP_KEY, STUDIO_KEY, VERTEX_KEY, GROQ_KEY_1]) expect(text).not.toContain(secret);
   });
 
-  it("models lists both models", async () => {
+  it("models lists the allowed Gemini models and the STT model", async () => {
     const res = await handleModels(authed("https://x.test/api/models"));
     const body = await res.json();
-    expect(body.data.map((m: { id: string }) => m.id)).toEqual(["gemini-3.5-flash-lite", "whisper-large-v3-turbo"]);
+    expect(body.data.map((m: { id: string }) => m.id)).toEqual(["gemini-3.5-flash-lite", "gemini-3.8-flash", "whisper-large-v3-turbo"]);
   });
 });

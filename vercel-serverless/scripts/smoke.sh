@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Smoke test against a DEPLOYED base URL.
-#   APP_API_KEY=... [SMOKE_AUDIO=/path/to/short.wav] scripts/smoke.sh https://YOUR-APP.vercel.app
+#   APP_API_KEY=... [SMOKE_AUDIO=/path/to/short.wav] scripts/smoke.sh https://sss-pluely-backend.vercel.app
 # The key is read from the environment only; it is never written to a file or printed.
 set -u
 
 BASE="${1:-}"
 if [ -z "$BASE" ] || [ -z "${APP_API_KEY:-}" ]; then
-  echo "usage: APP_API_KEY=... $0 https://YOUR-APP.vercel.app" >&2
+  echo "usage: APP_API_KEY=... $0 https://sss-pluely-backend.vercel.app" >&2
   exit 2
 fi
 BASE="${BASE%/}"

@@ -23,7 +23,7 @@ export interface GeminiEvent {
 }
 
 export function resolveModel(requested: string | undefined): string {
-  return requested && MODEL_RE.test(requested) ? requested : env.geminiModel();
+  return requested && MODEL_RE.test(requested) && env.geminiAllowedModels().includes(requested) ? requested : env.geminiModel();
 }
 
 export function mapFinishReason(reason: string | undefined): string {

@@ -19,6 +19,7 @@ function int(name: string, fallback: number, min: number): number {
 }
 
 export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
+export const DEFAULT_ALLOWED_GEMINI_MODELS = ["gemini-3.5-flash-lite", "gemini-3.8-flash"];
 export const DEFAULT_STT_MODEL = "whisper-large-v3-turbo";
 export const STT_ALLOWED_MODELS = ["whisper-large-v3-turbo", "whisper-large-v3"];
 
@@ -26,6 +27,13 @@ export const env = {
   appApiKey: (): string => str("APP_API_KEY") ?? "",
   geminiKeys: (): string[] => parseKeys(process.env.GEMINI_API_KEY),
   geminiModel: (): string => nonEmpty("GEMINI_MODEL", DEFAULT_GEMINI_MODEL),
+  // Models a request may select. The configured default is always allowed.
+  geminiAllowedModels: (): string[] => {
+    const listed = (str("GEMINI_ALLOWED_MODELS") ?? "").split(",").map((m) => m.trim()).filter(Boolean);
+    const base = listed.length ? listed : DEFAULT_ALLOWED_GEMINI_MODELS;
+    const def = nonEmpty("GEMINI_MODEL", DEFAULT_GEMINI_MODEL);
+    return [def, ...base.filter((m) => m !== def)];
+  },
   // undefined => omit thinkingConfig (explicit empty string). Default 0 (thinking off).
   geminiThinkingBudget: (): number | undefined => {
     const raw = str("GEMINI_THINKING_BUDGET");

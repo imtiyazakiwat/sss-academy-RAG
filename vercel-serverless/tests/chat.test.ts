@@ -328,17 +328,26 @@ describe("model and generation config", () => {
     expect(bodyOf(calls[1]).generationConfig.temperature).toBe(0.3);
   });
 
-  it("honours gemini-* model overrides and falls back to GEMINI_MODEL otherwise", async () => {
-    setEnv({ APP_API_KEY: APP_KEY, GEMINI_API_KEY: STUDIO_KEY, GEMINI_MODEL: "gemini-env-model" });
-    const calls = stubFetch([geminiOk("a"), geminiOk("b"), geminiOk("c")]);
+  it("honours allowlisted model overrides and falls back to GEMINI_MODEL otherwise", async () => {
+    setEnv({ APP_API_KEY: APP_KEY, GEMINI_API_KEY: STUDIO_KEY });
+    const calls = stubFetch([geminiOk("a"), geminiOk("b"), geminiOk("c"), geminiOk("d")]);
+    await handleChat(postJson(URL_, { ...pluelyBody, model: "gemini-3.8-flash" }));
     await handleChat(postJson(URL_, { ...pluelyBody, model: "gemini-custom-1.5" }));
     await handleChat(postJson(URL_, { ...pluelyBody, model: "gpt-4o" }));
     await handleChat(postJson(URL_, { ...pluelyBody, model: "gemini/../../evil" }));
-    expect(calls[0].url).toContain("models/gemini-custom-1.5:");
+    expect(calls[0].url).toContain("models/gemini-3.8-flash:");
+    for (const i of [1, 2, 3]) expect(calls[i].url).toContain("models/gemini-3.5-flash-lite:");
+  });
+  it("GEMINI_MODEL is always allowed and GEMINI_ALLOWED_MODELS overrides the list", async () => {
+    setEnv({ APP_API_KEY: APP_KEY, GEMINI_API_KEY: STUDIO_KEY, GEMINI_MODEL: "gemini-env-model", GEMINI_ALLOWED_MODELS: "gemini-x-1, gemini-x-2" });
+    const calls = stubFetch([geminiOk("a"), geminiOk("b"), geminiOk("c")]);
+    await handleChat(postJson(URL_, { ...pluelyBody, model: "gemini-x-2" }));
+    await handleChat(postJson(URL_, { ...pluelyBody, model: "gemini-env-model" }));
+    await handleChat(postJson(URL_, { ...pluelyBody, model: "gemini-3.8-flash" }));
+    expect(calls[0].url).toContain("models/gemini-x-2:");
     expect(calls[1].url).toContain("models/gemini-env-model:");
     expect(calls[2].url).toContain("models/gemini-env-model:");
   });
-
   it("max_tokens / max_completion_tokens and env overrides", async () => {
     setEnv({ APP_API_KEY: APP_KEY, GEMINI_API_KEY: STUDIO_KEY, GEMINI_THINKING_BUDGET: "" });
     const calls = stubFetch([geminiOk("a"), geminiOk("b")]);

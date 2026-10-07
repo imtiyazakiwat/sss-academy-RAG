@@ -1,8 +1,8 @@
 Pluely -> Dev Space -> Custom Providers (AI) -> Add
-Replace YOUR-APP.vercel.app with your production domain after `vercel --prod`.
+Production URL: https://sss-pluely-backend.vercel.app (verified by live tests on 2026-10-07).
 
 Curl Command:
-curl https://YOUR-APP.vercel.app/v1/chat/completions \
+curl https://sss-pluely-backend.vercel.app/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer {{API_KEY}}" \
   -d '{
@@ -12,11 +12,12 @@ curl https://YOUR-APP.vercel.app/v1/chat/completions \
 
 Response Content Path:  choices[0].message.content
 Streaming:              ON (recommended; OFF also works)
-Variables to fill in Pluely:  API_KEY = <the APP_API_KEY value you set in Vercel>,  MODEL = gemini-3.5-flash-lite
+Variables to fill in Pluely:  API_KEY = <contents of vercel-serverless/.app_api_key>,  MODEL = gemini-3.5-flash-lite
+Allowed MODEL ids: gemini-3.5-flash-lite (default, fastest), gemini-3.8-flash (slower). Any other id falls back to the default.
 
 Notes
 - Vercel Deployment Protection can return an HTML 401 for protected (preview) URLs. Use the production
-  domain alias and confirm first:  curl -i https://YOUR-APP.vercel.app/api/health -H "Authorization: Bearer <key>"
+  domain alias and confirmed on this deployment:  curl -i https://sss-pluely-backend.vercel.app/api/health -H "Authorization: Bearer <key>"
   must return JSON.
 - This API is a direct forwarder. It adds no prompt, no retrieval and no post-processing: the answer style is
   whatever the system prompt in Pluely says.

@@ -22,6 +22,7 @@ export async function handleHealth(request: Request): Promise<Response> {
         configured: gemini.length > 0,
         keys: gemini.length,
         model: env.geminiModel(),
+        allowed_models: env.geminiAllowedModels(),
         backend: geminiBackend(gemini),
       },
       stt: { configured: groq.length > 0, keys: groq.length, model: env.sttModel() },
@@ -39,7 +40,7 @@ export async function handleModels(request: Request): Promise<Response> {
     {
       object: "list",
       data: [
-        { id: env.geminiModel(), object: "model", created: 1700000000, owned_by: "google" },
+        ...env.geminiAllowedModels().map((id) => ({ id, object: "model", created: 1700000000, owned_by: "google" })),
         { id: env.sttModel(), object: "model", created: 1700000000, owned_by: "groq" },
       ],
     },

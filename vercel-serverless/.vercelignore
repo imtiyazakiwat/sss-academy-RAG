@@ -5,3 +5,4 @@ pluely
 .env.*
 node_modules
 coverage
+.app_api_key

@@ -1,8 +1,8 @@
 Pluely -> Dev Space -> Custom Providers (STT) -> Add
-Replace YOUR-APP.vercel.app with your production domain after `vercel --prod`.
+Production URL: https://sss-pluely-backend.vercel.app (verified by live tests on 2026-10-07).
 
 Curl Command:
-curl -X POST "https://YOUR-APP.vercel.app/v1/audio/transcriptions" \
+curl -X POST "https://sss-pluely-backend.vercel.app/v1/audio/transcriptions" \
   -H "Authorization: Bearer {{API_KEY}}" \
   -F "file={{AUDIO}}" \
   -F "model={{MODEL}}" \
@@ -10,14 +10,14 @@ curl -X POST "https://YOUR-APP.vercel.app/v1/audio/transcriptions" \
 
 Response Content Path:  text
 Streaming:              OFF
-Variables to fill in Pluely:  API_KEY = <the APP_API_KEY value>,  MODEL = whisper-large-v3-turbo
+Variables to fill in Pluely:  API_KEY = <contents of vercel-serverless/.app_api_key>,  MODEL = whisper-large-v3-turbo
 
 Alternatives the endpoint also accepts
 1) Raw audio body:
-     curl -X POST "https://YOUR-APP.vercel.app/v1/audio/transcriptions?language=en" \
+     curl -X POST "https://sss-pluely-backend.vercel.app/v1/audio/transcriptions?language=en" \
        -H "Authorization: Bearer {{API_KEY}}" -H "Content-Type: audio/wav" --data-binary {{AUDIO}}
 2) JSON with base64 audio (Pluely substitutes base64):
-     curl -X POST "https://YOUR-APP.vercel.app/v1/audio/transcriptions" \
+     curl -X POST "https://sss-pluely-backend.vercel.app/v1/audio/transcriptions" \
        -H "Authorization: Bearer {{API_KEY}}" -H "Content-Type: application/json" \
        -d '{"audio":"{{AUDIO}}","language":"en"}'
    Response path for both: text
