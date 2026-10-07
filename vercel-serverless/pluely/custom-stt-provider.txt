@@ -1,0 +1,28 @@
+Pluely -> Dev Space -> Custom Providers (STT) -> Add
+Replace YOUR-APP.vercel.app with your production domain after `vercel --prod`.
+
+Curl Command:
+curl -X POST "https://YOUR-APP.vercel.app/v1/audio/transcriptions" \
+  -H "Authorization: Bearer {{API_KEY}}" \
+  -F "file={{AUDIO}}" \
+  -F "model={{MODEL}}" \
+  -F language=en
+
+Response Content Path:  text
+Streaming:              OFF
+Variables to fill in Pluely:  API_KEY = <the APP_API_KEY value>,  MODEL = whisper-large-v3-turbo
+
+Alternatives the endpoint also accepts
+1) Raw audio body:
+     curl -X POST "https://YOUR-APP.vercel.app/v1/audio/transcriptions?language=en" \
+       -H "Authorization: Bearer {{API_KEY}}" -H "Content-Type: audio/wav" --data-binary {{AUDIO}}
+2) JSON with base64 audio (Pluely substitutes base64):
+     curl -X POST "https://YOUR-APP.vercel.app/v1/audio/transcriptions" \
+       -H "Authorization: Bearer {{API_KEY}}" -H "Content-Type: application/json" \
+       -d '{"audio":"{{AUDIO}}","language":"en"}'
+   Response path for both: text
+
+Notes
+- Vercel limits request bodies to about 4.5 MB; this API caps audio at 4,000,000 bytes (413 above that).
+  Keep recordings short (roughly under 2 minutes of 16 kHz WAV, more for compressed formats).
+- Use the production domain, not a protected preview URL (see custom-ai-provider.txt).

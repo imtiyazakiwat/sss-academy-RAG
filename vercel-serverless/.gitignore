@@ -1,0 +1,12 @@
+.vercel
+node_modules
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+coverage
+
+# The repo-root .gitignore ignores every "lib/" directory (Python virtualenv rule).
+# This project's source lives in lib/, so re-include it.
+!/lib/

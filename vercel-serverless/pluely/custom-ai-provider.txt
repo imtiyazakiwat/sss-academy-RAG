@@ -1,0 +1,23 @@
+Pluely -> Dev Space -> Custom Providers (AI) -> Add
+Replace YOUR-APP.vercel.app with your production domain after `vercel --prod`.
+
+Curl Command:
+curl https://YOUR-APP.vercel.app/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer {{API_KEY}}" \
+  -d '{
+    "model": "{{MODEL}}",
+    "messages": [{"role": "system", "content": "{{SYSTEM_PROMPT}}"}, {"role": "user", "content": [{"type": "text", "text": "{{TEXT}}"}, {"type": "image_url", "image_url": {"url": "data:image/png;base64,{{IMAGE}}"}}]}]
+  }'
+
+Response Content Path:  choices[0].message.content
+Streaming:              ON (recommended; OFF also works)
+Variables to fill in Pluely:  API_KEY = <the APP_API_KEY value you set in Vercel>,  MODEL = gemini-3.5-flash-lite
+
+Notes
+- Vercel Deployment Protection can return an HTML 401 for protected (preview) URLs. Use the production
+  domain alias and confirm first:  curl -i https://YOUR-APP.vercel.app/api/health -H "Authorization: Bearer <key>"
+  must return JSON.
+- This API is a direct forwarder. It adds no prompt, no retrieval and no post-processing: the answer style is
+  whatever the system prompt in Pluely says.
+- Request bodies are limited to about 4.5 MB by Vercel (large screenshots count against this).

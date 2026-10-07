@@ -1,0 +1,7 @@
+tests
+scripts
+pluely
+.env
+.env.*
+node_modules
+coverage
