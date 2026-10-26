@@ -19,7 +19,9 @@ function int(name: string, fallback: number, min: number): number {
 }
 
 export const DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite";
-export const DEFAULT_ALLOWED_GEMINI_MODELS = ["gemini-3.5-flash-lite", "gemini-3.8-flash"];
+export const DEFAULT_ALLOWED_GEMINI_MODELS = ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-4-argon"];
+export const GEMINI4_THINKING_LEVELS = ["low", "medium", "high"] as const;
+export type Gemini4ThinkingLevel = (typeof GEMINI4_THINKING_LEVELS)[number];
 export const DEFAULT_STT_MODEL = "whisper-large-v3-turbo";
 export const STT_ALLOWED_MODELS = ["whisper-large-v3-turbo", "whisper-large-v3"];
 
@@ -42,7 +44,14 @@ export const env = {
     const n = Number(raw);
     return Number.isInteger(n) ? n : 0;
   },
-  geminiMaxOutputTokens: (): number => int("GEMINI_MAX_OUTPUT_TOKENS", 2048, 1),
+  // Gemini 4 thinking depth. Defaults to the model's own default, "medium".
+  gemini4ThinkingLevel: (): Gemini4ThinkingLevel => {
+    const raw = (str("GEMINI4_THINKING_LEVEL") ?? "").toLowerCase();
+    return (GEMINI4_THINKING_LEVELS as readonly string[]).includes(raw) ? (raw as Gemini4ThinkingLevel) : "medium";
+  },
+  // Default output budget when a request sends no max_tokens. 2048 cut code answers off mid-file;
+  // 32768 leaves room for long answers. A request's own max_tokens still wins.
+  geminiMaxOutputTokens: (): number => int("GEMINI_MAX_OUTPUT_TOKENS", 32_768, 1),
   geminiMaxRetries: (): number => int("GEMINI_MAX_RETRIES", 2, 0),
   geminiRetryBaseMs: (): number => int("GEMINI_RETRY_BASE_MS", 1000, 0),
   vertexProject: (): string => nonEmpty("VERTEX_PROJECT_ID", "patil-hospital-pos"),

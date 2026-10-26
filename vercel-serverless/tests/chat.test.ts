@@ -39,7 +39,7 @@ describe("request translation", () => {
     expect(b.contents.map((c: { role: string }) => c.role)).toEqual(["user", "model", "user"]);
     expect(b.contents[2].parts[0]).toEqual({ text: "and SCD?" });
     expect(b.contents[2].parts[1]).toEqual({ inlineData: { mimeType: "image/png", data: PNG_B64 } });
-    expect(b.generationConfig).toEqual({ maxOutputTokens: 2048, thinkingConfig: { thinkingBudget: 0 } });
+    expect(b.generationConfig).toEqual({ maxOutputTokens: 32768, thinkingConfig: { thinkingBudget: 0 } });
   });
 
   it("uses Vertex express URL and project header for non-AIzaSy keys", async () => {

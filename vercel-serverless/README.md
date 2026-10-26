@@ -19,7 +19,7 @@ Every endpoint needs `Authorization: Bearer <APP_API_KEY>` (or `x-api-key`). Mis
 | `GET /api/models` | `/v1/models`, `/models` | Model list |
 
 Limits: Vercel caps request bodies at about 4.5 MB. Audio is capped at 4,000,000 bytes (413 above that), and base64 JSON
-inflates audio by about 33 percent. Send short audio chunks. `maxDuration` is 60 s for chat and STT.
+inflates audio by about 33 percent. Send short audio chunks. `maxDuration` is 300 s for chat and 60 s for STT. The upstream Gemini timeout is 45 s, or 240 s for Gemini 4 and for output budgets above 8192 tokens.
 Verified on the real deployment: the 4,000,000-byte audio cap (413). Vercel's own 4.5 MB enforcement and the 60 s `maxDuration` were not exercised.
 
 ## Environment variables
@@ -42,11 +42,12 @@ vercel --prod
 | `APP_API_KEY` | yes | none (unset = 500) |
 | `GEMINI_API_KEY` | yes (chat) | none. `AIzaSy...` keys use AI Studio, other keys use Vertex express |
 | `GEMINI_MODEL` | no | `gemini-3.5-flash-lite` (the default; always allowed) |
-| `GEMINI_ALLOWED_MODELS` | no | `gemini-3.5-flash-lite,gemini-3.8-flash`. A request `model` outside this list falls back to `GEMINI_MODEL` |
+| `GEMINI_ALLOWED_MODELS` | no | `gemini-3.5-flash-lite,gemini-3.8-flash,gemini-4-argon`. A request `model` outside this list falls back to `GEMINI_MODEL` |
 | `GEMINI_THINKING_BUDGET` | no | `0`; empty string omits `thinkingConfig` |
-| `GEMINI_MAX_OUTPUT_TOKENS` | no | `2048` |
+| `GEMINI_MAX_OUTPUT_TOKENS` | no | `32768` (used when a request sends no `max_tokens`; a request's own value wins) |
 | `GEMINI_MAX_RETRIES` | no | `2` (switches key first on 429/503, else backs off) |
 | `GEMINI_RETRY_BASE_MS` | no | `1000` |
+| `GEMINI4_THINKING_LEVEL` | no | `medium` (`low`/`medium`/`high`, Gemini 4 only) |
 | `VERTEX_PROJECT_ID` / `VERTEX_LOCATION` | no | `patil-hospital-pos` / `global` (same as local `config.py`) |
 | `GROQ_API_KEYS` | yes (STT) | none |
 | `STT_MODEL` / `STT_PROMPT` | no | `whisper-large-v3-turbo` / unset |

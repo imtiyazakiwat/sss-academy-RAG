@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["bom1"],
   "functions": {
-    "api/chat.ts": { "maxDuration": 60 },
+    "api/chat.ts": { "maxDuration": 300 },
     "api/stt.ts": { "maxDuration": 60 }
   },
   "rewrites": [

@@ -6,6 +6,19 @@ import type { GeminiContent, Usage } from "./openai";
 
 const MODEL_RE = /^gemini-[A-Za-z0-9._-]+$/;
 const UPSTREAM_TIMEOUT_MS = 45_000;
+/**
+ * Gemini 4 reasons before answering, and long answers (output budgets above 8192 tokens) take
+ * minutes on any model; Google suggests long client timeouts. Bounded by the function's
+ * maxDuration (300 s).
+ */
+const LONG_UPSTREAM_TIMEOUT_MS = 240_000;
+const LONG_OUTPUT_TOKENS = 8192;
+
+/** The upstream timeout for one request: long for Gemini 4 or a large output budget, else 45 s. */
+export function upstreamTimeoutMs(req: GenerateRequest): number {
+  const budget = req.maxTokens ?? env.geminiMaxOutputTokens();
+  return isGemini4(req.model) || budget > LONG_OUTPUT_TOKENS ? LONG_UPSTREAM_TIMEOUT_MS : UPSTREAM_TIMEOUT_MS;
+}
 
 export interface GenerateRequest {
   model: string;
@@ -59,14 +72,29 @@ function endpoint(key: string, model: string, stream: boolean): { url: string; h
   };
 }
 
-function buildPayload(req: GenerateRequest, withThinking: boolean): Record<string, unknown> {
+/** Gemini 4 models think by level (low/medium/high) instead of a token budget, and ignore sampling params. */
+export function isGemini4(model: string): boolean {
+  return /^gemini-4(\b|[-.])/.test(model);
+}
+
+/** Google's migration guide asks for at least this much output room on Gemini 4; thinking shares it. */
+export const GEMINI4_MIN_OUTPUT_TOKENS = 32_768;
+
+export function buildPayload(req: GenerateRequest, withThinking: boolean): Record<string, unknown> {
+  const gemini4 = isGemini4(req.model);
+  const requested = req.maxTokens ?? env.geminiMaxOutputTokens();
   const generationConfig: Record<string, unknown> = {
-    maxOutputTokens: req.maxTokens ?? env.geminiMaxOutputTokens(),
+    maxOutputTokens: gemini4 ? Math.max(requested, GEMINI4_MIN_OUTPUT_TOKENS) : requested,
   };
-  // Gemini 3.8 rejects temperature/top_p/top_k.
-  if (req.temperature !== undefined && !req.model.includes("3.8")) generationConfig.temperature = req.temperature;
-  const budget = env.geminiThinkingBudget();
-  if (withThinking && budget !== undefined) generationConfig.thinkingConfig = { thinkingBudget: budget };
+  // Gemini 3.8 rejects temperature/top_p/top_k; Gemini 4 ignores them, so don't send them.
+  if (req.temperature !== undefined && !req.model.includes("3.8") && !gemini4) generationConfig.temperature = req.temperature;
+  if (gemini4) {
+    // The 3.x thinking budget doesn't apply here; a 400 still falls back to no thinkingConfig.
+    if (withThinking) generationConfig.thinkingConfig = { thinkingLevel: env.gemini4ThinkingLevel() };
+  } else {
+    const budget = env.geminiThinkingBudget();
+    if (withThinking && budget !== undefined) generationConfig.thinkingConfig = { thinkingBudget: budget };
+  }
 
   const payload: Record<string, unknown> = { contents: req.contents, generationConfig };
   if (req.system.trim()) payload.systemInstruction = { parts: [{ text: req.system }] };
@@ -128,14 +156,15 @@ async function callUpstream(req: GenerateRequest, stream: boolean): Promise<Resp
         method: "POST",
         headers,
         body: JSON.stringify(buildPayload(req, withThinking)),
-        signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
+        signal: AbortSignal.timeout(upstreamTimeoutMs(req)),
       });
     } catch {
       throw new HttpError(502, "Could not reach Gemini. Try again shortly.", "upstream_error", "upstream_error");
     }
     if (res.ok) return res;
 
-    if (res.status === 400 && withThinking && !thinkingFallbackUsed && env.geminiThinkingBudget() !== undefined) {
+    const sendsThinking = isGemini4(req.model) || env.geminiThinkingBudget() !== undefined;
+    if (res.status === 400 && withThinking && !thinkingFallbackUsed && sendsThinking) {
       const body = await res.text().catch(() => "");
       if (body.toLowerCase().includes("thinking")) {
         thinkingFallbackUsed = true;
